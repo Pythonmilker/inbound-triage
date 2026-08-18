@@ -1,0 +1,9 @@
+# The build allowlist lives HERE, not in package.json — pnpm 11 ignores `onlyBuiltDependencies`
+# there, which presents as esbuild never installing its binary.
+#
+# pnpm 11 (April 2026) defaults `strictDepBuilds: true`, so a dependency with a lifecycle script is
+# blocked and `pnpm install` exits non-zero unless the package is listed here. esbuild genuinely needs
+# its postinstall — it fetches the platform binary Vite compiles with. Without this file a fresh clone
+# fails on the reviewer's very first command, which is the one failure this project cannot afford.
+allowBuilds:
+  esbuild: true
