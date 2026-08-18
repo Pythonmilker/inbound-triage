@@ -1,0 +1,152 @@
+views {
+
+  view index {
+    title 'System context'
+    description '''
+      **A local, single-user tool that sorts a shared inbox with a language model.**
+
+      Click any box to go inside it. Every box carries a plain-English explanation and a link to the
+      design section or file it came from.
+
+      ### What this map is
+      Written from the locked design, mostly *before* the code existed — so nearly everything is tagged
+      **planned** (dashed and muted) rather than built. That distinction is the point: a planned box is a
+      claim about intent, and you should be able to tell it from a fact at a glance. Two boxes are solid,
+      because those files exist and were verified: the sample data and the taxonomy.
+
+      ### What surprised me while designing it
+      The supplied sample data file is *itself* one of the planted edge cases — not just the messages
+      inside it. It contains escape sequences that are illegal in JSON, so reading it with a strict parser
+      fails on the whole file. Verified rather than assumed: the parse fails at line 98, and repairing the
+      escapes recovers all thirteen messages with the corrupted bytes still intact, so a later stage can
+      still recognise one message as garbage instead of quietly cleaning it up.
+
+      ### Coverage, honestly
+      This is a design model, not a reading of finished code. Sixteen design decisions are settled and
+      recorded in `DECISIONS.md`; two components are marked as deliberately **not built** (an Airtable
+      store and a Slack notifier) and appear as seams. Nothing here was inferred from a framework
+      convention — every box traces to a design section or a file.
+
+      ### What to read next
+      The **App layers** view, for how the browser and the server process divide the work — and where the
+      API key is and is not.
+    '''
+    include *
+    style operator {
+      color muted
+    }
+  }
+
+  view layers of triage {
+    title 'App layers — and the key boundary'
+    description '''
+      **The claim this view exists to make visible: the API key lives in exactly one box, and nothing
+      that crosses to the browser carries it.**
+
+      The browser holds no credential of any kind — not a key, not a token, not a masked placeholder. It
+      asks the local server for rows. The server process reads the key from the environment with an empty
+      variable prefix, which is the specific line that keeps it out of the browser bundle, and never
+      returns it in any response.
+
+      ### Why there is no offline mode
+      A key-less demo mode was designed and then cut. It would have been a cushion for a stated
+      requirement — the tool calls a model per message, so with no key it refuses to start and names the
+      two commands that fix it. Failing fast with a legible message is the behaviour; degrading quietly
+      is not.
+
+      ### What surprised me
+      The database and the credential want the same home. Because the store needs a server process
+      anyway, the key has somewhere natural to live and no separate service is needed to hold it — which
+      is what made a hosted key-relay unnecessary rather than forbidden.
+
+      ### What to read next
+      **Engine internals**, where the two verdicts are produced and combined.
+    '''
+    include *
+    include triage.browser.*
+    include triage.node.*
+    include operator, openrouter, fixture, taxonomy
+
+    style triage.browser {
+      color green
+    }
+    style triage.node {
+      color amber
+    }
+    style element.tag = #seam {
+      color muted
+    }
+  }
+
+  view engine of triage.node.engine {
+    title 'Engine internals — one model call, two verdicts'
+    description '''
+      **Two claims here, and they are the load-bearing decisions of the whole design.**
+
+      ### One model call per message
+      Reconciliation — the step that combines the deterministic verdict with the model's — is ordinary
+      code. It calls no model. There is exactly one outbound call per message and it has already
+      happened by the time reconciliation runs. A test pins this by injecting a network function that
+      throws if touched.
+
+      ### The rule layer briefs the model but does not vote in front of it
+      Follow the two arrows out of the rule floor. One goes to the prompt carrying **observations** —
+      factual readings like *this text contains a first-person claim of being a client* or *this text
+      contains a deadline expression* — reported symmetrically, every signal present or absent, in a
+      fixed order with no emphasis. The other goes to reconciliation carrying the **verdict**.
+
+      The verdict never reaches the prompt. Handing a model a suggested answer is absorbed silently: the
+      reply still reads as independent reasoning while no longer being any, and the comparison downstream
+      would then be two opinions tracing to one source. Agreement would rise, which reads as validation.
+
+      ### What surprised me
+      The output field order turned out to matter. Text is generated in sequence, so the schema emits the
+      summary and the supporting evidence *before* the category and priority — putting the labels first
+      would decide the answer before the reasoning that justifies it.
+
+      ### What to read next
+      Any of the three traces, which play step by step: the ordinary path, the unreadable message, and
+      the failure that queues itself.
+    '''
+    include *
+    include -> triage.node.engine
+    include openrouter, triage.node.store
+
+    style triage.node.engine.reconcile {
+      color indigo
+    }
+    style triage.node.engine.rules {
+      color green
+    }
+  }
+
+  view data of triage.node.store {
+    title 'Data — two tables, and the seam'
+    description '''
+      **Two tables, not three.** An unreadable message is an ordinary result row carrying the label
+      `unreadable`, so there is no separate holding area for it — which is what removed a whole surface
+      from the interface. An earlier design parked those messages in their own bucket; folding them into
+      the queue as just another tag is what let the grid be a single list.
+
+      Result rows are keyed by message and carry a content fingerprint. That is what makes a re-run
+      idempotent: an unchanged message is skipped, an edited one is triaged again.
+
+      ### Two fields that are deliberately independent
+      `category` says what the message *is*. `status` says whether we *finished*. Keeping them apart is
+      what stops a failed call having to masquerade as a category — a failed call asserts no verdict at
+      all, and the row shows the failure kind and attempt count instead of a plausible-looking label.
+
+      ### The seam
+      The Airtable store is **deliberately not built** and shown muted. The interface above it is real
+      and has a working implementation behind it, so this is a named migration path rather than an
+      abstraction invented for a document.
+    '''
+    include *
+    include triage.node.db
+    include -> triage.node.store
+
+    style element.tag = #seam {
+      color muted
+    }
+  }
+}

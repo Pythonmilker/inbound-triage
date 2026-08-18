@@ -1,0 +1,148 @@
+views {
+
+  dynamic view trace-normal {
+    title 'Trace — an ordinary message is triaged'
+    description '''
+      The happy path, for a message like *"I'm an existing client and my mortgage lender needs an updated
+      portfolio statement by this Friday."*
+
+      Watch for the fork: the rule layer's readings go to the prompt, its verdict goes to reconciliation,
+      and those are two different arrows on purpose.
+    '''
+    variant sequence
+
+    operator -> triage.browser.ui 'presses Run'
+    triage.browser.ui -> triage.node.server 'POST /api/triage/run'
+    triage.node.server -> triage.node.engine.ingest 'start a run'
+    triage.node.engine.ingest -> triage.node.engine.observations 'repaired message' {
+      notes '''
+        The file was repaired before parsing — see the loader. Nothing about this message needed it, but
+        one message in the same file did, and a strict parse would have failed the whole file.
+      '''
+    }
+    triage.node.engine.observations -> triage.node.engine.rules 'symmetric signal list' {
+      notes '''
+        Two signals fire here: a first-person claim of being a client, and a deadline expression
+        ("by this Friday"). Every other signal is reported as absent — the list is symmetric so it reads
+        as an instrument, not advice.
+      '''
+    }
+    triage.node.engine.observations -> triage.node.engine.prompt 'observations, alongside the raw text' {
+      notes '''
+        The prompt gets the message *and* the readings. It does NOT get the rule layer's verdict — that
+        would anchor the model, and the anchoring is absorbed silently, so the reply would still read as
+        independent reasoning while no longer being any.
+      '''
+    }
+    triage.node.engine.prompt -> triage.node.engine.llm 'one request, strict schema'
+    triage.node.engine.llm -> openrouter 'POST /chat/completions' {
+      notes '''
+        The request carries `provider.require_parameters` alongside the schema. Without it the provider
+        may route a capable model name to an endpoint that ignores the schema and return prose with an
+        HTTP 200 — no error, no retry.
+      '''
+    }
+    triage.node.engine.llm <- openrouter 'JSON reply'
+    triage.node.engine.llm -> triage.node.engine.validate 'unchecked reply' {
+      notes '''
+        Deliberately unchecked at this point. The transport returns the parsed body and validates
+        nothing — an unchecked cast here is exactly the defect this split exists to prevent.
+      '''
+    }
+    triage.node.engine.validate -> triage.node.engine.reconcile 'the model verdict'
+    triage.node.engine.rules -> triage.node.engine.reconcile 'the deterministic verdict' {
+      notes '''
+        Both arrive here. Reconciliation is ordinary code and calls no model.
+
+        The model said medium; the rule layer saw a stated deadline and said high. Priority takes the
+        higher of the two — the rule layer can raise urgency but never lower it, because a model that
+        under-reads an urgent client is the expensive mistake while a false high costs one glance. The row
+        records that it moved, and why.
+      '''
+    }
+    triage.node.engine.reconcile -> triage.node.store 'writes the row'
+    triage.node.store -> triage.node.db 'upsert by message id'
+    triage.node.engine.reconcile -> triage.node.notify 'high priority written'
+    triage.browser.ui <- triage.node.server 'rows, never a credential'
+  }
+
+  dynamic view trace-unreadable {
+    title 'Trace — a message with nothing in it'
+    description '''
+      One of the planted edge cases: a body that is a single full stop, and another that is corrupted
+      transport data.
+
+      The thing to notice is the arrow that **is not here** — no call to the provider. Spending a model
+      call on `"."` is waste, and the answer is already known.
+    '''
+    variant sequence
+
+    triage.node.server -> triage.node.engine.ingest 'start a run'
+    triage.node.engine.ingest -> triage.node.engine.observations 'the message, repaired' {
+      notes '''
+        For the corrupted message the repair is what makes reading the *file* possible at all. It keeps
+        the bad bytes rather than stripping them, precisely so this stage can still tell it is garbage.
+      '''
+    }
+    triage.node.engine.observations -> triage.node.engine.rules 'body is negligible · transport garbage'
+    triage.node.engine.rules -> triage.node.engine.reconcile 'unreadable, with the reason' {
+      notes '''
+        No model call. The row is written as `unreadable` with the specific reason — an empty body, a body
+        below the threshold, or transport garbage — and its status is *finished*, because we did finish:
+        the answer is that there is nothing here.
+
+        This is also why the label is `unreadable` and not `error`: a reader scanning the grid must not
+        mistake "this message is garbage" for "the app broke".
+      '''
+    }
+    triage.node.engine.reconcile -> triage.node.store 'writes the row'
+    triage.node.store -> triage.node.db 'upsert'
+  }
+
+  dynamic view trace-failure {
+    title 'Trace — the call fails, and the work is kept'
+    description '''
+      The path the brief actually asks about: an API error that must not take the run down.
+
+      The design decision on display is that the queue is a record of **work we could not do yet**, not a
+      mechanism for waiting out an outage. It drains when the blocker clears — including when the operator
+      fixes something.
+    '''
+    variant sequence
+
+    triage.node.engine.prompt -> triage.node.engine.llm 'one request'
+    triage.node.engine.llm -> openrouter 'POST /chat/completions'
+    triage.node.engine.llm <- openrouter 'HTTP 402 — out of credit'
+    triage.node.engine.llm -> triage.node.engine.validate 'typed failure: unfunded' {
+      notes '''
+        Kept distinct from a rate limit on purpose. One means *fund the key*, the other means *wait* —
+        different fixes, and the interface names the fix. The sibling project in this workspace folds them
+        into one kind; this corrects that.
+      '''
+    }
+    triage.node.engine.validate -> triage.node.engine.retry 'queue it' {
+      notes '''
+        The row is written with status *pending retry* and **no category and no priority asserted** — a
+        failed call does not get to guess. It records the failure kind and the attempt.
+
+        An earlier design made a credential failure terminal, on the reasoning that retrying cannot fix a
+        bad key. That was wrong: the *operator* can fix it, and discarding the work would have thrown away
+        the whole run while the fix was one environment variable away.
+      '''
+    }
+    triage.node.engine.retry -> triage.node.engine.pool 'the run continues' {
+      notes 'One dead call does not abort the other twelve.'
+    }
+    triage.node.engine.retry -> triage.node.store 'records the attempt'
+    triage.browser.summarybar <- triage.node.server 'says how many could not be triaged' {
+      notes '''
+        Always one line, never blank: how many were triaged, how many were not, and the last failure kind.
+        When the model chain is exhausted for an item, this is the headline that tells a human to look —
+        a row sitting quietly in a queue is not loud enough for that.
+      '''
+    }
+    operator -> triage.browser.summarybar 'fixes the key, presses Retry'
+    triage.browser.summarybar -> triage.node.server 'POST /api/triage/retry'
+    triage.node.server -> triage.node.engine.retry 'drain the queue'
+  }
+}

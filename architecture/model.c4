@@ -1,0 +1,380 @@
+model {
+
+  operator = actor 'Operator' {
+    description '''
+      The person triaging the inbox — and, in the assessment, the reviewer running the tool.
+      They supply the API key themselves; the app ships configured but never carries a credential.
+    '''
+    metadata { spec 'docs/DESIGN.md#5' }
+  }
+
+  openrouter = external 'OpenRouter' {
+    technology 'HTTPS · /chat/completions'
+    description '''
+      The model provider. One call per message, with a strict JSON schema attached.
+
+      Two traps live at this boundary and both are guarded in code. Structured-output support is a
+      property of the *endpoint*, not the model, so a request must also say
+      `provider.require_parameters` — without it the provider may route a capable model name to an
+      endpoint that ignores the schema and returns ordinary prose with an HTTP 200: no error, no retry,
+      just unstructured text where a schema was promised. And a model list longer than three items is
+      rejected outright as a malformed request, which does not fall through to the next model — it kills
+      the call.
+    '''
+    metadata { spec 'docs/DESIGN.md#6' }
+  }
+
+  triage = system 'Inbound Triage Assistant' {
+    technology 'React 19 · Vite · Node 24 · node:sqlite'
+    description '''
+      A local, single-user tool. It reads a shared inbox of free-text messages and, for each one,
+      produces a one-line summary, a category, a priority and a suggested next action — then shows the
+      queue in a grid you can filter and expand.
+
+      The design turns on two claims, and both are visible in the diagrams: the API key never crosses
+      into the browser, and the step that combines the rule layer with the model calls no model itself.
+    '''
+    link ../docs/DESIGN.md 'design'
+    metadata { spec 'docs/DESIGN.md' }
+
+    // ── Browser lane ────────────────────────────────────────────────────────────────────────────
+    browser = container 'Browser' {
+      #boundary
+      technology 'React 19'
+      description '''
+        Everything the operator sees. It holds no credential of any kind — not a key, not a token, not
+        a masked placeholder. It asks the local server for rows and renders them.
+      '''
+      metadata { spec 'docs/DESIGN.md#5' }
+
+      ui = component 'Triage grid' {
+        #planned
+        technology 'React · hand-written CSS'
+        description '''
+          A grid built in the idiom of a spreadsheet tool: tag chips for category and priority, a filter
+          bar with live counts, and rows that expand in place to show the full message, the suggested
+          action, and — when a call failed — every attempt with its model and failure kind.
+
+          The shape is deliberate. The role this was built for asks for spreadsheet-tool fluency and the
+          write-up has to explain how the same data would be modelled there, so the interface is the
+          visual half of that written answer.
+        '''
+        metadata { spec 'docs/DESIGN.md#8' }
+      }
+
+      summarybar = component 'Run summary bar' {
+        #planned
+        description '''
+          One line, always present after a run, never blank: how many were triaged, how many could not
+          be, and the last failure kind. A clean run says so. When the model chain is exhausted for an
+          item, this is the headline that says a human has to look.
+        '''
+        metadata { spec 'docs/DESIGN.md#4.2d' }
+      }
+
+      apiclient = component 'API client' {
+        #planned
+        description 'The single place any URL appears. Sends plain requests; receives rows.'
+        metadata { spec 'docs/DESIGN.md#8' }
+      }
+    }
+
+    // ── Node lane ───────────────────────────────────────────────────────────────────────────────
+    node = container 'Node process' {
+      #boundary
+      technology 'Node 24 · Vite middleware'
+      description '''
+        The only place the API key exists. It is read from the environment with an empty variable
+        prefix — the line that keeps it out of the browser bundle — used to build the outbound request,
+        and never returned in any response, not even masked.
+
+        This process also owns the database, which is why the key has a natural home here and needs no
+        separate service to hold it.
+      '''
+      metadata { spec 'docs/DESIGN.md#5' }
+
+      preflight = component 'Preflight' {
+        #planned
+        description '''
+          Runs before the dev server and refuses to start when something is missing: too old a Node
+          version, or no API key. It names the variable and the two commands that fix it.
+
+          There is deliberately no offline mode. A degraded key-less mode was designed and then cut —
+          it would have been a cushion for a stated requirement, and the requirement is that this tool
+          calls a model per message.
+        '''
+        metadata { spec 'docs/DESIGN.md#5' }
+      }
+
+      server = component 'API surface' {
+        #planned
+        technology 'Vite configureServer middleware'
+        description '''
+          A small flat set of routes: list messages, list results, run the triage, retry what is
+          pending, report health. Reads are GET so they can be opened in a browser tab while debugging.
+        '''
+        metadata { spec 'docs/DESIGN.md#5' }
+      }
+
+      engine = container 'Triage engine' {
+        technology 'TypeScript'
+        description '''
+          The pipeline itself, built as a factory rather than a module with global state — configuration
+          is passed in, never imported. That is what lets several instances coexist in one process, and
+          it costs nothing, because it is the absence of shared state rather than an added subsystem.
+        '''
+        metadata { spec 'docs/DESIGN.md#2.3' }
+
+        ingest = component 'Loader' {
+          #planned
+          description '''
+            Reads the message file and repairs it before parsing.
+
+            The supplied sample file is *itself* one of the planted edge cases: one message body
+            contains escape sequences that are illegal in JSON, so a strict parse of the file fails
+            outright. The repair rewrites them to a legal form carrying the same characters, which keeps
+            the corrupted bytes intact so a later stage can still recognise the message as garbage
+            rather than quietly laundering it clean.
+          '''
+          metadata { spec 'docs/DESIGN.md#4.1' }
+        }
+
+        observations = component 'Observations' {
+          #planned
+          description '''
+            Turns each message into a fixed list of factual readings: does the sender claim to be a
+            client, is there a deadline, is there complaint language, is this bulk mail, is the body
+            effectively empty, does it contain transport garbage.
+
+            The list is *symmetric* — every signal is reported whether present or absent, in a fixed
+            order, with no emphasis on any of them. That is what keeps it an instrument reading rather
+            than a suggestion, and it is the reason it can be shown to the model at all.
+          '''
+          metadata { spec 'docs/DESIGN.md#5b' }
+        }
+
+        rules = component 'Rule floor' {
+          #planned
+          description '''
+            The deterministic verdict: a category and a priority derived only from the observations, with
+            a confidence that rises with the number of *independent* signals that agreed.
+
+            This is not a fallback. It runs on every message, always, as one of the two inputs the next
+            stage combines.
+          '''
+          metadata { spec 'docs/DESIGN.md#4.3' }
+        }
+
+        prompt = component 'Prompt builder' {
+          #planned
+          description '''
+            Builds the instructions from the taxonomy rows themselves, so the categories described in
+            prose can never drift from the ones the model is allowed to choose.
+
+            It sends the raw message **plus** the observation list — alongside, never instead of. And it
+            deliberately withholds one thing: the rule layer's own verdict. Handing a model a suggested
+            answer is absorbed silently, so the reply still reads as independent judgment while no longer
+            being any; the comparison downstream would then be two opinions from one source.
+          '''
+          metadata { spec 'docs/DESIGN.md#5b' }
+        }
+
+        llm = component 'Model transport' {
+          #planned
+          technology 'fetch · injectable'
+          description '''
+            One outbound call per message, with the failure kinds kept distinct because the fix differs
+            per kind and the interface names the fix: a rejected key, an unfunded account, a rate limit,
+            a timeout, a server error, a network failure, an unusable reply.
+
+            Notably an unfunded account is *not* folded in with a rate limit — one means fund the key and
+            the other means wait. The sibling project in this workspace conflates them; this corrects it.
+          '''
+          metadata { spec 'docs/DESIGN.md#4.2b' }
+        }
+
+        validate = component 'Re-validation' {
+          #planned
+          description '''
+            Checks every field again after the schema has already constrained it, because a structured
+            output is a strong hint and not a guarantee.
+
+            A near-miss is a failure, not something to quietly repair: silently correcting a wrong label
+            hides a real prompt defect. It also separates a reply that was cut off mid-generation from
+            one that was simply wrong — the first is fixed by allowing more room and retrying the same
+            model, the second by trying a different one.
+          '''
+          metadata { spec 'docs/DESIGN.md#5b' }
+        }
+
+        reconcile = component 'Reconciliation' {
+          #surprise
+          #planned
+          description '''
+            Where the two verdicts meet — and it is ordinary code. **No model is called here.** There is
+            exactly one model call per message in this system and it already happened.
+
+            Two rules do the work. Priority takes the *higher* of the two, so the rule layer can raise
+            urgency but never lower it: a model that under-reads an angry client is the expensive
+            mistake, while a false high costs one glance. And category takes the model's answer *unless*
+            the sender explicitly said they were a client, because that is a fact stated in the text
+            rather than a judgment call.
+          '''
+          metadata { spec 'docs/DESIGN.md#4.3' }
+        }
+
+        retry = component 'Retry queue' {
+          #planned
+          description '''
+            A record of work that could not be done yet — not a mechanism for waiting out an outage.
+            It drains whenever the blocking condition clears, *including when the operator fixes
+            something*, which is why a rejected or unfunded key queues rather than being abandoned.
+
+            An unusable reply is different: it walks to the next model in the chain in our own code,
+            because the provider only falls through on its own errors and a reply that arrived
+            successfully but wrong is, to it, a success.
+          '''
+          metadata { spec 'docs/DESIGN.md#4.2c' }
+        }
+
+        pool = component 'Bounded pool' {
+          #planned
+          description '''
+            Runs a few messages at a time and returns results in input order. Without it the queue is
+            either serial and slow or unbounded and rate-limited. One failed call does not stop the
+            others.
+          '''
+          metadata { spec 'docs/DESIGN.md#2.3' }
+        }
+      }
+
+      store = container 'Store' {
+        description 'One interface, one real implementation, and one documented migration path.'
+        metadata { spec 'docs/DESIGN.md#4.4' }
+
+        sqlitestore = component 'SQLite store' {
+          #planned
+          technology 'node:sqlite — zero dependencies'
+          description '''
+            Uses the database built into the runtime, so there is nothing to install and therefore
+            nothing that can fail to install. Rows are keyed by message and carry a content fingerprint,
+            which is what makes a re-run idempotent: an unchanged message is skipped, an edited one is
+            triaged again.
+          '''
+          metadata { spec 'docs/DESIGN.md#4.4' }
+        }
+
+        airtableseam = component 'Airtable store' {
+          #seam
+          #cut
+          description '''
+            **Deliberately not built.** The interface above is real and has a working implementation
+            behind it, so this is a named migration path rather than an abstraction invented for a
+            document. Building it is out of scope; the write-up explains the data model instead.
+          '''
+          metadata { spec 'docs/DESIGN.md#4.4' }
+        }
+      }
+
+      notify = container 'Notifications' {
+        description 'A seam that is exercised rather than theoretical.'
+        metadata { spec 'docs/DESIGN.md#4.5' }
+
+        consolenotify = component 'Console notifier' {
+          #planned
+          description '''
+            A real, working implementation. The point of it: an interface with one working implementation
+            is a seam, and one with none is a guess.
+          '''
+          metadata { spec 'docs/DESIGN.md#4.5' }
+        }
+
+        slackseam = component 'Slack notifier' {
+          #seam
+          #cut
+          description '''
+            **A seam, by choice** — a stub that is not wired up and throws if called. Its trigger and
+            action are documented (a high-priority verdict is written, so post to a channel), which
+            doubles as the automation the write-up is asked to describe.
+          '''
+          metadata { spec 'docs/DESIGN.md#4.5' }
+        }
+      }
+
+      db = datastore 'triage.db' {
+        #planned
+        technology 'SQLite · WAL'
+        description '''
+          Two tables, not three. An unreadable message is an ordinary result row carrying the label
+          `unreadable`, so there is no separate holding area for it — which is what removed a whole
+          surface from the interface.
+        '''
+        metadata {
+          spec 'docs/DESIGN.md#4.4'
+          tables 'messages · triage_results'
+          key 'triage_results keyed by message_id, carrying content_hash'
+        }
+      }
+    }
+  }
+
+  // ── Inputs ────────────────────────────────────────────────────────────────────────────────────
+  fixture = artifact 'inbound.json' {
+    #built
+    technology '13 messages'
+    description '''
+      The supplied sample data, transcribed exactly as given — including the illegal escape sequences
+      that make the file itself invalid. Verified: a strict parse fails at line 98, and the repair
+      recovers all thirteen messages with the corrupted bytes still intact.
+    '''
+    link ../raw/inbound.json 'fixture'
+    metadata { file 'raw/inbound.json' }
+  }
+
+  taxonomy = artifact 'Taxonomy and schema' {
+    #built
+    description '''
+      Categories and priorities held as data rows rather than branches, and the model's output shape.
+
+      Two decisions live in these two files. Doubling the taxonomy adds rows and one list entry — no new
+      branch, no new table. And the output puts the summary and the supporting evidence *before* the
+      category and priority, because text is generated in order and whatever comes first conditions what
+      follows; putting the labels first would decide the answer before the reasoning that justifies it.
+    '''
+    link ../src/triage/types.ts 'types'
+    metadata { file 'src/triage/types.ts · src/triage/schema.ts' }
+  }
+
+  // ── Relationships ─────────────────────────────────────────────────────────────────────────────
+  operator -> triage.browser 'runs the triage, reads the queue'
+  operator -> triage.node.preflight 'supplies the API key in .env'
+
+  fixture -> triage.node.engine.ingest 'read at start of a run'
+  taxonomy -> triage.node.engine.prompt 'generates the category list'
+  taxonomy -> triage.node.engine.validate 'defines the legal values'
+
+  triage.browser.ui -> triage.browser.apiclient 'requests rows'
+  triage.browser.summarybar -> triage.browser.apiclient 'requests run outcome'
+  triage.browser.apiclient -> triage.node.server 'rows only — never a credential'
+
+  triage.node.preflight -> triage.node.server 'refuses to start without a key'
+  triage.node.server -> triage.node.engine 'runs a triage, or drains the retry queue'
+  triage.node.server -> triage.node.store 'reads rows to serve'
+
+  triage.node.engine.ingest -> triage.node.engine.observations 'passes repaired messages'
+  triage.node.engine.observations -> triage.node.engine.rules 'symmetric signal list'
+  triage.node.engine.observations -> triage.node.engine.prompt 'observations — alongside the raw text'
+  triage.node.engine.prompt -> triage.node.engine.pool 'one request per message'
+  triage.node.engine.pool -> triage.node.engine.llm 'a few at a time, results in order'
+  triage.node.engine.llm -> openrouter 'one call per message, strict schema'
+  triage.node.engine.llm -> triage.node.engine.validate 'unchecked reply'
+  triage.node.engine.validate -> triage.node.engine.reconcile 'the model verdict'
+  triage.node.engine.rules -> triage.node.engine.reconcile 'the deterministic verdict'
+  triage.node.engine.validate -> triage.node.engine.retry 'failed or unusable call'
+  triage.node.engine.retry -> triage.node.engine.pool 'drains when the blocker clears'
+  triage.node.engine.reconcile -> triage.node.store 'writes the final row'
+  triage.node.engine.reconcile -> triage.node.notify 'high priority written'
+
+  triage.node.store.sqlitestore -> triage.node.db 'reads and writes'
+  triage.node.notify.consolenotify -> operator 'prints a notice'
+}

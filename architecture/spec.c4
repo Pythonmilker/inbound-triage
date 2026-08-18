@@ -1,0 +1,31 @@
+specification {
+
+  element actor {
+    style { shape person }
+  }
+  element system
+  element container
+  element component
+  element datastore {
+    style { shape storage }
+  }
+  element external {
+    style { color muted }
+  }
+  element artifact {
+    style { shape document }
+  }
+
+  // Design mode: this model was written from the locked design, mostly before the code existed.
+  // #planned must LOOK provisional in every view, or a reader cannot tell intent from fact.
+  tag planned
+  tag built
+  tag boundary
+  tag seam
+  tag surprise
+  tag cut
+
+  relationship writes
+  relationship reads
+  relationship calls
+}
