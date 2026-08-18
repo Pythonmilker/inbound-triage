@@ -1,38 +1,34 @@
 model {
 
   operator = actor 'Operator' {
+    summary 'The person triaging the inbox. Supplies the API key themselves.'
     description '''
-      The person triaging the inbox — and, in the assessment, the reviewer running the tool.
-      They supply the API key themselves; the app ships configured but never carries a credential.
+      In the assessment this is the reviewer running the tool. The app ships configured but never carries
+      a credential, so the key comes from whoever runs it.
     '''
     metadata { spec 'docs/DESIGN.md#5' }
   }
 
   openrouter = external 'OpenRouter' {
     technology 'HTTPS · /chat/completions'
+    summary 'The model provider. One call per message, with a strict output shape attached.'
     description '''
-      The model provider. One call per message, with a strict JSON schema attached.
-
-      Two traps live at this boundary and both are guarded in code. Structured-output support is a
-      property of the *endpoint*, not the model, so a request must also say
-      `provider.require_parameters` — without it the provider may route a capable model name to an
-      endpoint that ignores the schema and returns ordinary prose with an HTTP 200: no error, no retry,
-      just unstructured text where a schema was promised. And a model list longer than three items is
-      rejected outright as a malformed request, which does not fall through to the next model — it kills
-      the call.
+      Two traps live at this boundary, both guarded in code. Schema support belongs to the *endpoint*, not
+      the model name, so the request must also say `require_parameters` — without it the provider can
+      return ordinary prose with a success code. And a model list longer than three is rejected as
+      malformed, which kills the call rather than falling through.
     '''
     metadata { spec 'docs/DESIGN.md#6' }
   }
 
   triage = system 'Inbound Triage Assistant' {
     technology 'React 19 · Vite · Node 24 · node:sqlite'
+    summary 'Reads a shared inbox and sorts it: a summary, a category, a priority and a next step per message.'
     description '''
-      A local, single-user tool. It reads a shared inbox of free-text messages and, for each one,
-      produces a one-line summary, a category, a priority and a suggested next action — then shows the
-      queue in a grid you can filter and expand.
+      A local, single-user tool. It shows the sorted queue in a grid you can filter and expand.
 
-      The design turns on two claims, and both are visible in the diagrams: the API key never crosses
-      into the browser, and the step that combines the rule layer with the model calls no model itself.
+      The design turns on two claims, and both are visible in these views: the API key never crosses into
+      the browser, and the step that combines the rule layer with the model calls no model itself.
     '''
     link ../docs/DESIGN.md 'design'
     metadata { spec 'docs/DESIGN.md' }
@@ -41,40 +37,42 @@ model {
     browser = container 'Browser' {
       #boundary
       technology 'React 19'
+      summary 'Everything the operator sees. Holds no credential of any kind.'
       description '''
-        Everything the operator sees. It holds no credential of any kind — not a key, not a token, not
-        a masked placeholder. It asks the local server for rows and renders them.
+        Not a key, not a token, not a masked placeholder. It asks the local server for rows and renders
+        them.
       '''
       metadata { spec 'docs/DESIGN.md#5' }
 
       ui = component 'Triage grid' {
         #planned
         technology 'React · hand-written CSS'
+        summary 'Tag chips, a filter bar with live counts, and rows that expand in place.'
         description '''
-          A grid built in the idiom of a spreadsheet tool: tag chips for category and priority, a filter
-          bar with live counts, and rows that expand in place to show the full message, the suggested
+          Built in the idiom of a spreadsheet tool. An expanded row shows the full message, the suggested
           action, and — when a call failed — every attempt with its model and failure kind.
 
-          The shape is deliberate. The role this was built for asks for spreadsheet-tool fluency and the
-          write-up has to explain how the same data would be modelled there, so the interface is the
-          visual half of that written answer.
+          The shape is deliberate: the role asks for spreadsheet-tool fluency and the write-up has to
+          explain how this data would be modelled there, so the interface is the visual half of that
+          written answer.
         '''
         metadata { spec 'docs/DESIGN.md#8' }
       }
 
       summarybar = component 'Run summary bar' {
         #planned
+        summary 'One line after every run: how many were triaged, how many were not, and the last failure.'
         description '''
-          One line, always present after a run, never blank: how many were triaged, how many could not
-          be, and the last failure kind. A clean run says so. When the model chain is exhausted for an
-          item, this is the headline that says a human has to look.
+          Always present, never blank. A clean run says so. When the model chain is exhausted for an item,
+          this is the headline that tells a human to look — a row sitting quietly in a queue is not loud
+          enough for that.
         '''
         metadata { spec 'docs/DESIGN.md#4.2d' }
       }
 
       apiclient = component 'API client' {
         #planned
-        description 'The single place any URL appears. Sends plain requests; receives rows.'
+        summary 'The single place any URL appears. Sends plain requests, receives rows.'
         metadata { spec 'docs/DESIGN.md#8' }
       }
     }
@@ -83,25 +81,24 @@ model {
     node = container 'Node process' {
       #boundary
       technology 'Node 24 · Vite middleware'
+      summary 'The only place the API key exists. Also owns the database.'
       description '''
-        The only place the API key exists. It is read from the environment with an empty variable
-        prefix — the line that keeps it out of the browser bundle — used to build the outbound request,
-        and never returned in any response, not even masked.
+        The key is read from the environment with an empty variable prefix — the specific line that keeps
+        it out of the browser bundle — used to build the outbound request, and never returned in any
+        response, not even masked.
 
-        This process also owns the database, which is why the key has a natural home here and needs no
-        separate service to hold it.
+        Because this process owns the database anyway, the key has a natural home and needs no separate
+        service to hold it.
       '''
       metadata { spec 'docs/DESIGN.md#5' }
 
       preflight = component 'Preflight' {
         #planned
+        summary 'Refuses to start when the Node version is too old or no API key is set.'
         description '''
-          Runs before the dev server and refuses to start when something is missing: too old a Node
-          version, or no API key. It names the variable and the two commands that fix it.
-
-          There is deliberately no offline mode. A degraded key-less mode was designed and then cut —
-          it would have been a cushion for a stated requirement, and the requirement is that this tool
-          calls a model per message.
+          It names the variable and the two commands that fix it. There is deliberately no offline mode: a
+          key-less mode was designed and cut, because it would have been a cushion for a stated
+          requirement.
         '''
         metadata { spec 'docs/DESIGN.md#5' }
       }
@@ -109,72 +106,69 @@ model {
       server = component 'API surface' {
         #planned
         technology 'Vite configureServer middleware'
-        description '''
-          A small flat set of routes: list messages, list results, run the triage, retry what is
-          pending, report health. Reads are GET so they can be opened in a browser tab while debugging.
-        '''
+        summary 'List messages, list results, run the triage, retry what is pending, report health.'
+        description 'Reads are GET so they can be opened in a browser tab while debugging.'
         metadata { spec 'docs/DESIGN.md#5' }
       }
 
       engine = container 'Triage engine' {
         technology 'TypeScript'
+        summary 'The pipeline. A factory, not a module with global state.'
         description '''
-          The pipeline itself, built as a factory rather than a module with global state — configuration
-          is passed in, never imported. That is what lets several instances coexist in one process, and
-          it costs nothing, because it is the absence of shared state rather than an added subsystem.
+          Configuration is passed in, never imported. That is what lets several instances coexist in one
+          process, and it costs nothing — it is the absence of shared state rather than an added
+          subsystem.
         '''
         metadata { spec 'docs/DESIGN.md#2.3' }
 
         ingest = component 'Loader' {
           #planned
+          summary 'Reads the message file and repairs it before parsing.'
           description '''
-            Reads the message file and repairs it before parsing.
+            The supplied sample file is *itself* one of the planted edge cases: one message body contains
+            escape sequences that are illegal in JSON, so a strict parse of the whole file fails.
 
-            The supplied sample file is *itself* one of the planted edge cases: one message body
-            contains escape sequences that are illegal in JSON, so a strict parse of the file fails
-            outright. The repair rewrites them to a legal form carrying the same characters, which keeps
-            the corrupted bytes intact so a later stage can still recognise the message as garbage
-            rather than quietly laundering it clean.
+            The repair rewrites them to a legal form carrying the same characters, which keeps the
+            corrupted bytes intact so a later stage can still recognise that message as garbage rather
+            than quietly laundering it clean.
           '''
           metadata { spec 'docs/DESIGN.md#4.1' }
         }
 
         observations = component 'Observations' {
           #planned
+          summary 'Turns each message into a fixed list of factual readings — every signal, present or absent.'
           description '''
-            Turns each message into a fixed list of factual readings: does the sender claim to be a
-            client, is there a deadline, is there complaint language, is this bulk mail, is the body
-            effectively empty, does it contain transport garbage.
+            Does the sender claim to be a client, is there a deadline, is there complaint language, is this
+            bulk mail, is the body effectively empty, does it contain transport garbage.
 
-            The list is *symmetric* — every signal is reported whether present or absent, in a fixed
-            order, with no emphasis on any of them. That is what keeps it an instrument reading rather
-            than a suggestion, and it is the reason it can be shown to the model at all.
+            The list is *symmetric*: every signal reported either way, in a fixed order, with no emphasis
+            on any of them. That is what keeps it an instrument reading rather than a suggestion — and it
+            is the reason it can be shown to the model at all.
           '''
           metadata { spec 'docs/DESIGN.md#5b' }
         }
 
         rules = component 'Rule floor' {
           #planned
+          summary 'The deterministic verdict, from the observations alone. Not a fallback — it always runs.'
           description '''
-            The deterministic verdict: a category and a priority derived only from the observations, with
-            a confidence that rises with the number of *independent* signals that agreed.
-
-            This is not a fallback. It runs on every message, always, as one of the two inputs the next
-            stage combines.
+            A category and a priority with a confidence that rises with the number of *independent* signals
+            that agreed. It is one of the two inputs the next stage combines, on every message.
           '''
           metadata { spec 'docs/DESIGN.md#4.3' }
         }
 
         prompt = component 'Prompt builder' {
           #planned
+          summary 'Sends the raw message plus the observations — and deliberately withholds the verdict.'
           description '''
-            Builds the instructions from the taxonomy rows themselves, so the categories described in
-            prose can never drift from the ones the model is allowed to choose.
+            The instructions are built from the taxonomy rows themselves, so the categories described in
+            prose can never drift from the ones the model may choose.
 
-            It sends the raw message **plus** the observation list — alongside, never instead of. And it
-            deliberately withholds one thing: the rule layer's own verdict. Handing a model a suggested
-            answer is absorbed silently, so the reply still reads as independent judgment while no longer
-            being any; the comparison downstream would then be two opinions from one source.
+            Handing a model a suggested answer is absorbed silently: the reply still reads as independent
+            judgment while no longer being any, and the comparison downstream would then be two opinions
+            from one source.
           '''
           metadata { spec 'docs/DESIGN.md#5b' }
         }
@@ -182,27 +176,27 @@ model {
         llm = component 'Model transport' {
           #planned
           technology 'fetch · injectable'
+          summary 'One outbound call per message, with each failure kind kept distinct.'
           description '''
-            One outbound call per message, with the failure kinds kept distinct because the fix differs
-            per kind and the interface names the fix: a rejected key, an unfunded account, a rate limit,
-            a timeout, a server error, a network failure, an unusable reply.
+            A rejected key, an unfunded account, a rate limit, a timeout, a server error, a network
+            failure, an unusable reply — separate kinds, because the fix differs per kind and the
+            interface names the fix.
 
-            Notably an unfunded account is *not* folded in with a rate limit — one means fund the key and
-            the other means wait. The sibling project in this workspace conflates them; this corrects it.
+            Notably an unfunded account is *not* folded in with a rate limit: one means fund the key, the
+            other means wait. The sibling project in this workspace conflates them; this corrects it.
           '''
           metadata { spec 'docs/DESIGN.md#4.2b' }
         }
 
         validate = component 'Re-validation' {
           #planned
+          summary 'Checks every field again, because a constrained output is a strong hint and not a guarantee.'
           description '''
-            Checks every field again after the schema has already constrained it, because a structured
-            output is a strong hint and not a guarantee.
+            A near-miss is a failure, not something to quietly repair — silently correcting a wrong label
+            hides a real prompt defect.
 
-            A near-miss is a failure, not something to quietly repair: silently correcting a wrong label
-            hides a real prompt defect. It also separates a reply that was cut off mid-generation from
-            one that was simply wrong — the first is fixed by allowing more room and retrying the same
-            model, the second by trying a different one.
+            It also separates a reply cut off mid-generation from one that was simply wrong: the first is
+            fixed by allowing more room and retrying the same model, the second by trying a different one.
           '''
           metadata { spec 'docs/DESIGN.md#5b' }
         }
@@ -210,27 +204,26 @@ model {
         reconcile = component 'Reconciliation' {
           #surprise
           #planned
+          summary 'Where the two verdicts meet — and it calls no model. Ordinary code.'
           description '''
-            Where the two verdicts meet — and it is ordinary code. **No model is called here.** There is
-            exactly one model call per message in this system and it already happened.
+            There is exactly one model call per message and it already happened by the time this runs.
 
             Two rules do the work. Priority takes the *higher* of the two, so the rule layer can raise
-            urgency but never lower it: a model that under-reads an angry client is the expensive
-            mistake, while a false high costs one glance. And category takes the model's answer *unless*
-            the sender explicitly said they were a client, because that is a fact stated in the text
-            rather than a judgment call.
+            urgency but never lower it — a model that under-reads an angry client is the expensive mistake,
+            while a false high costs one glance. Category takes the model's answer *unless* the sender
+            explicitly said they were a client, because that is a fact stated in the text.
           '''
           metadata { spec 'docs/DESIGN.md#4.3' }
         }
 
         retry = component 'Retry queue' {
           #planned
+          summary 'A record of work that could not be done yet — including work blocked on the operator.'
           description '''
-            A record of work that could not be done yet — not a mechanism for waiting out an outage.
-            It drains whenever the blocking condition clears, *including when the operator fixes
-            something*, which is why a rejected or unfunded key queues rather than being abandoned.
+            Not a mechanism for waiting out an outage. It drains whenever the blocker clears, which is why
+            a rejected or unfunded key queues rather than being abandoned: the *operator* can fix that.
 
-            An unusable reply is different: it walks to the next model in the chain in our own code,
+            An unusable reply is different — it walks to the next model in the chain in our own code,
             because the provider only falls through on its own errors and a reply that arrived
             successfully but wrong is, to it, a success.
           '''
@@ -239,27 +232,27 @@ model {
 
         pool = component 'Bounded pool' {
           #planned
+          summary 'Runs a few messages at a time, returning results in input order.'
           description '''
-            Runs a few messages at a time and returns results in input order. Without it the queue is
-            either serial and slow or unbounded and rate-limited. One failed call does not stop the
-            others.
+            Without it the queue is either serial and slow or unbounded and rate-limited. One failed call
+            does not stop the others.
           '''
           metadata { spec 'docs/DESIGN.md#2.3' }
         }
       }
 
       store = container 'Store' {
-        description 'One interface, one real implementation, and one documented migration path.'
+        summary 'One interface, one real implementation, one documented migration path.'
         metadata { spec 'docs/DESIGN.md#4.4' }
 
         sqlitestore = component 'SQLite store' {
           #planned
           technology 'node:sqlite — zero dependencies'
+          summary 'Uses the database built into the runtime, so there is nothing to install.'
           description '''
-            Uses the database built into the runtime, so there is nothing to install and therefore
-            nothing that can fail to install. Rows are keyed by message and carry a content fingerprint,
-            which is what makes a re-run idempotent: an unchanged message is skipped, an edited one is
-            triaged again.
+            Nothing to install means nothing that can fail to install. Rows are keyed by message and carry
+            a content fingerprint, which is what makes a re-run idempotent: an unchanged message is
+            skipped, an edited one is triaged again.
           '''
           metadata { spec 'docs/DESIGN.md#4.4' }
         }
@@ -267,35 +260,32 @@ model {
         airtableseam = component 'Airtable store' {
           #seam
           #cut
+          summary 'Deliberately not built. A named migration path, not an abstraction invented for a document.'
           description '''
-            **Deliberately not built.** The interface above is real and has a working implementation
-            behind it, so this is a named migration path rather than an abstraction invented for a
-            document. Building it is out of scope; the write-up explains the data model instead.
+            The interface above is real and has a working implementation behind it. Building this is out of
+            scope; the write-up explains the data model instead.
           '''
           metadata { spec 'docs/DESIGN.md#4.4' }
         }
       }
 
       notify = container 'Notifications' {
-        description 'A seam that is exercised rather than theoretical.'
+        summary 'A seam that is exercised rather than theoretical.'
         metadata { spec 'docs/DESIGN.md#4.5' }
 
         consolenotify = component 'Console notifier' {
           #planned
-          description '''
-            A real, working implementation. The point of it: an interface with one working implementation
-            is a seam, and one with none is a guess.
-          '''
+          summary 'A real, working implementation — which is what makes the interface a seam and not a guess.'
           metadata { spec 'docs/DESIGN.md#4.5' }
         }
 
         slackseam = component 'Slack notifier' {
           #seam
           #cut
+          summary 'A seam, by choice. A stub that is not wired up and throws if called.'
           description '''
-            **A seam, by choice** — a stub that is not wired up and throws if called. Its trigger and
-            action are documented (a high-priority verdict is written, so post to a channel), which
-            doubles as the automation the write-up is asked to describe.
+            Its trigger and action are documented — a high-priority verdict is written, so post to a
+            channel — which doubles as the automation the write-up is asked to describe.
           '''
           metadata { spec 'docs/DESIGN.md#4.5' }
         }
@@ -304,10 +294,10 @@ model {
       db = datastore 'triage.db' {
         #planned
         technology 'SQLite · WAL'
+        summary 'Two tables, not three. An unreadable message is an ordinary row, not a separate bucket.'
         description '''
-          Two tables, not three. An unreadable message is an ordinary result row carrying the label
-          `unreadable`, so there is no separate holding area for it — which is what removed a whole
-          surface from the interface.
+          It carries the label `unreadable` like any other category, which is what removed a whole surface
+          from the interface.
         '''
         metadata {
           spec 'docs/DESIGN.md#4.4'
@@ -322,10 +312,10 @@ model {
   fixture = artifact 'inbound.json' {
     #built
     technology '13 messages'
+    summary 'The supplied sample data, transcribed exactly — including the escapes that make it invalid.'
     description '''
-      The supplied sample data, transcribed exactly as given — including the illegal escape sequences
-      that make the file itself invalid. Verified: a strict parse fails at line 98, and the repair
-      recovers all thirteen messages with the corrupted bytes still intact.
+      Verified rather than assumed: a strict parse fails at line 98, and the repair recovers all thirteen
+      messages with the corrupted bytes still intact.
     '''
     link ../raw/inbound.json 'fixture'
     metadata { file 'raw/inbound.json' }
@@ -333,13 +323,14 @@ model {
 
   taxonomy = artifact 'Taxonomy and schema' {
     #built
+    summary 'Categories and priorities as data rows rather than branches, plus the model output shape.'
     description '''
-      Categories and priorities held as data rows rather than branches, and the model's output shape.
+      Two decisions live in these files. Doubling the taxonomy adds rows and one list entry — no new
+      branch, no new table.
 
-      Two decisions live in these two files. Doubling the taxonomy adds rows and one list entry — no new
-      branch, no new table. And the output puts the summary and the supporting evidence *before* the
-      category and priority, because text is generated in order and whatever comes first conditions what
-      follows; putting the labels first would decide the answer before the reasoning that justifies it.
+      And the output puts the summary and supporting evidence *before* the category and priority, because
+      text is generated in order and whatever comes first conditions what follows. Labels first would
+      decide the answer before the reasoning that justifies it.
     '''
     link ../src/triage/types.ts 'types'
     metadata { file 'src/triage/types.ts · src/triage/schema.ts' }
