@@ -9,10 +9,10 @@ data/
 .DS_Store
 dist-map/
 
-# Local assistant tooling: editor/agent config, not product. Kept on disk, out of the repo — a public
-# repo describing itself as a "gig" with "acceptance criteria" says something about the artifact that
-# is not true of the code.
+# Editor and agent config, plus local working notes. Kept on disk, out of the repo.
 .claude/
+CLAUDE.md
+NOTES.md
+DECISIONS.md
 
-# The assessment document itself. Never the deliverable, never committed.
 _brief/

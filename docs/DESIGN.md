@@ -68,8 +68,7 @@ Both sentences are Joel's, from the same message, and they contradict each other
 no-Electron**, because that is the explicit instruction, it is what the stated reasoning argues for
 ("just need a UI that can show the work, not do heavy lifting; simpler is less things that can break"),
 and R9/R10 point the same way — Electron is a packaging and deployment concern the brief puts out of
-scope. The reasoning is recorded in DECISIONS.md as needing Joel's own restatement before it feeds
-RATIONALE.md.
+scope.
 
 ### 2.3 "Multiple instances spun up as needed / workers at a threshold" vs. R9 + R10
 
@@ -568,7 +567,7 @@ chrome. The resemblance should read as fluency, not as a knockoff.
 
 ## 9. Decisions — all settled
 
-Full reasoning in DECISIONS.md, in Joel's words.
+Each row is the settled call. The reasoning behind it is in the section that argued it.
 
 | # | Decision |
 |---|---|
@@ -590,9 +589,9 @@ Full reasoning in DECISIONS.md, in Joel's words.
 
 **All sixteen decisions settled. The design is locked.**
 
-Two of Claude's arguments were withdrawn as unsound and are recorded that way in DECISIONS.md: that a relay
-would violate the no-deployment rule (it would not — a relay is not the app), and that a reviewer holding only
-an Anthropic key would "hit a wall" (a papercut, since the Loom is the proof-of-working deliverable).
+Two arguments for a key-holding relay were withdrawn as unsound: that a relay would violate the
+no-deployment rule (it would not, a relay is not the app), and that someone holding only an Anthropic key
+would hit a wall (a papercut, and the walkthrough recording covers it).
 
 ---
 

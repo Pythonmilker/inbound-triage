@@ -1,22 +1,5 @@
 # Engineering Rationale
 
-<!--
-  SCAFFOLD - delete this comment block before shipping.
-
-  The five questions below are verbatim from the brief. Write the answers yourself, in your own words.
-  Claude has not drafted them and will not: the brief says "answer these in your own words, specific to your
-  implementation", the rubric puts 40% on whether the reasoning is genuinely yours, and you will be asked to
-  expand on each one live.
-
-  Facts, numbers and file references for each: _brief/rationale-evidence.md (gitignored). It also flags what
-  NOT to claim per question, which is worth reading first.
-
-  Length: "a few sentences each" is the brief's own instruction. Roughly 80-150 words per answer. An answer
-  you can extend under questioning beats a complete one you cannot.
-
-  Question (b) explicitly asks you to point to the relevant code. Cite file paths.
--->
-
 Answers to the five questions in the brief, for the Inbound Triage Assistant. Setup and known issues are in
 the [README](README.md).
 

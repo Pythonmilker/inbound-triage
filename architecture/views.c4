@@ -29,7 +29,7 @@ views {
       *legitimately* escaped backslash, silently rewriting that value. The loader walks the string instead.
 
       ### Coverage, honestly
-      Sixteen design decisions settled and recorded in `DECISIONS.md`. 213 tests passing across 11 files,
+      Sixteen design decisions are recorded in `docs/DESIGN.md` section 9. 232 tests pass across 13 files,
       with no API key configured — every test injects its network function rather than calling out. Three
       real defects were found by tests written against this design and then fixed: a discourse marker read
       as a complaint, an undeclared field accepted instead of rejected, and a chain escalation that

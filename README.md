@@ -45,7 +45,7 @@ optional and documented in `.env.example`.
 
 ```
 pnpm dev            preflight checks, then the app on port 5274
-pnpm verify         typecheck, then 233 tests across 13 files. No API key needed
+pnpm verify         typecheck, then 232 tests across 13 files. No API key needed
 pnpm eval           measures models and prompt variants against hand labels
 pnpm reset          clears verdicts, keeps messages
 pnpm prompts:dump   regenerates prompts/system.md from the code that builds it
