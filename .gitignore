@@ -13,3 +13,6 @@ dist-map/
 # repo describing itself as a "gig" with "acceptance criteria" says something about the artifact that
 # is not true of the code.
 .claude/
+
+# The assessment document itself. Never the deliverable, never committed.
+_brief/
