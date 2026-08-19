@@ -36,8 +36,14 @@ views {
       re-requested one model five times because it recorded the slug the provider *answered* with rather
       than the one we asked for.
 
-      Not yet verified end to end against a live provider — that needs a key, and it is the next step.
-      Nothing here was inferred from a framework convention.
+      Verified end to end against a live provider: the queue of thirteen triaged in 5.1 seconds for
+      $0.0022 across twelve model calls, and one schema-invalid response recovered on the retry path
+      without being asked to.
+
+      The number that argues against the design: measured cold on sixteen held-out messages the
+      deterministic layer gets **1** right, against 6 of 6 on the supplied thirteen. It is a
+      high-precision net rather than a general classifier, and the model carries unseen mail.
+      `eval/README.md` has the table. Nothing here was inferred from a framework convention.
 
       ### What to read next
       The **App layers** view, for how the browser and the server process divide the work — and where the
