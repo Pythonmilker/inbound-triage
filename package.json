@@ -16,7 +16,8 @@
     "typecheck": "tsc --noEmit",
     "verify": "pnpm typecheck && pnpm test",
     "eval": "tsx scripts/eval.ts",
-    "prompts:dump": "tsx scripts/dump-prompt.ts"
+    "prompts:dump": "tsx scripts/dump-prompt.ts",
+    "reset": "tsx scripts/reset.ts"
   },
   "dependencies": {
     "react": "^19.2.0",
