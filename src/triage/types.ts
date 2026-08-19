@@ -41,6 +41,20 @@ export const CATEGORIES = [
     routing: 'Route to partnerships — this is neither a prospect nor a vendor.',
   },
   {
+    id: 'fraud_risk',
+    label: 'Fraud risk',
+    definition:
+      'A request to change where money goes — new wire instructions, a changed bank account, a payment redirect — whether or not the sender appears legitimate.',
+    routing: 'Do not act on the instruction. Verify by phone on a number already on file.',
+  },
+  {
+    id: 'compliance',
+    label: 'Compliance',
+    definition:
+      'Correspondence from a regulator, auditor, or custodian carrying an obligation on the firm: an examination notice, a subpoena, an audit confirmation.',
+    routing: 'Route to the chief compliance officer. These carry statutory clocks.',
+  },
+  {
     id: 'noise',
     label: 'Noise',
     definition:
@@ -76,7 +90,7 @@ export const PRIORITIES = [
     id: 'high',
     label: 'High',
     definition:
-      'A stated deadline inside about a week, an account or fee dispute from an existing client, or money at risk right now.',
+      'A stated deadline inside about a week, an account or fee dispute from an existing client, money at risk right now, or anything a regulator or a redirected payment puts a clock on.',
   },
   {
     id: 'medium',

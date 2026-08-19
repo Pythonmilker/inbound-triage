@@ -317,11 +317,55 @@ Priority is `high` · `medium` · `low`, defined by **deadline and money at risk
 
 **Both are declarative data, not code branches** — and this is the answer to rationale question (a),
 "how your data model would hold up if the taxonomy doubled." A category is a row: label, description,
-match terms, routing hint. A priority rule is a row: the signal it looks for and the floor it sets.
-Doubling the taxonomy from six categories to twelve adds twelve rows and one line per new label in the
-schema enum; it adds **no** new `if` branch, no new table, and no migration beyond an insert. The
-schema enum is generated from the same rows, so a category cannot exist in the data and be un-selectable
-by the model, or vice versa — a test pins that.
+weighted evidence, routing hint. A priority modifier is a row: the signal, its signed points, and which
+categories it applies to. Growing the taxonomy adds rows and one line per new label in the schema enum; it
+adds **no** new `if` branch, no new table, and no migration beyond an insert. The schema enum is generated
+from the same rows, so a category cannot exist in the data and be un-selectable by the model, or vice
+versa — a test pins that.
+
+**This was exercised rather than asserted.** The taxonomy went from seven categories to nine when the
+never-firing guards made `fraud_risk` and `compliance` reachable. The cost was two rows in `CATEGORIES`,
+two rows in `CATEGORY_EVIDENCE`, two in `CATEGORY_PRIORITY_FLOOR`, and four test-corpus rows. No branch
+changed. The `Record<Category, …>` types refused to compile until every new label had declared evidence
+and a floor, which is the property that makes the claim checkable instead of hopeful.
+
+#### The signal model — weighted, signed, and direction-aware
+
+Three rules do the work, and each replaced something simpler that measurement showed could not work.
+
+1. **Weight is evidential strength, 1–5.** Asking about account minimums scores 2, because a competitor or
+   a tyre-kicker asks it too. Stating that you sold your business scores 5, because it is a fact the sender
+   volunteered about their own circumstances and fits almost nothing else. *This replaced counting matches,
+   which discriminated nothing:* the supplied messages average 125 characters and 22 words, so a message
+   never contains three redundant phrasings of one intent, and every category verdict scored exactly 0.65
+   — `0.5 + 1 × 0.15`. The confidence function was documented as rising with agreement while being unable
+   to rise in practice.
+
+2. **Direction and possession decide sign, not the noun — and never the amount.** *Our invoice* is a vendor
+   billing us; *the invoice you sent* is a client asking about ours. *To invest* is money arriving; *payment
+   is due* is money leaving. One determiner apart, opposite meaning, so the patterns capture the determiner.
+   An amount is captured into the detail and **never scored**: `$8M` appears both in *"I have $8M to
+   invest"* and in *"our platform manages $8M for firms like yours"*, and only direction separates the most
+   valuable message in the queue from a cold pitch. Two earlier designs — a dollar threshold, then magnitude
+   tiers — were rejected for the same reason: a threshold has to be a number, any number is a business rule
+   about who this firm wants, and tiers trade one arbitrary boundary for three.
+
+3. **Priority is a second, independent sum:** the category's own floor plus signed modifiers. A stated
+   deadline adds 2, a third-party requester adds 1, and *"no rush at all"* subtracts 1 — a sender who
+   disclaims urgency has told us something, and scoring that identically to silence discards it. Sales
+   evidence **suppresses** the money escalation entirely, which is rule 2 doing the work.
+
+Subtraction is safe here because reconciliation still takes the **higher** of the rule and model
+priorities (§4.3): this layer can lower its own read and can never lower the final verdict below what the
+model concluded.
+
+Confidence now moves on evidential weight **and** on the margin over the runner-up. Separation is what the
+count could not see — two categories tied on weak evidence is a genuinely uncertain read, and it now lands
+*below* the threshold at which this layer may override the model. On the supplied queue the verdicts spread
+across six distinct confidence values instead of one.
+
+Weighting also removed an accident. Ties used to break on whichever category was declared first, and on the
+client-referred prospect that arbitrary order was the only reason the right answer came out.
 
 What *would* strain at double: prompt length (the taxonomy is injected, so twelve definitions is a
 larger system prompt), and confusability between neighbouring labels — the honest failure mode is not
@@ -334,9 +378,10 @@ Where "deterministic" is actually enforced. Rules and model each produce a verdi
 
 - Category: the model's, unless the rules found an **explicit self-identification** ("I'm an existing
   client", "I'm a client") — that phrase is a fact in the text, not a judgment call.
-- Priority: **`max`** of the two, so a rule that spots a hard deadline or a stated complaint can only
-  raise urgency, never lower it. A model that under-reads an angry client is the expensive failure
-  direction; a false high costs one human glance.
+- Priority: **`max`** of the two, so a rule that spots a hard deadline or a disputed fee can only raise
+  urgency, never lower it. A model that under-reads an angry client is the expensive failure direction; a
+  false high costs one human glance. This is also what makes the rule layer's own negative modifiers safe:
+  `no_urgency` can lower the floor's read and can never lower the merged verdict.
 - Confidence below threshold, or any typed model failure, → the rule floor's verdict, labelled `rules`.
 - Every row records `source: model | rules | reconciled` and, when reconciliation moved something, why.
 

@@ -30,6 +30,7 @@ import {
   type InboundMessage,
   type Priority,
 } from '../src/triage/types.js';
+import { CONFIDENCE_THRESHOLD } from '../src/triage/schema.js';
 
 interface Phrasing {
   /** The quirk this row covers. Shown in the test name, so a failure says what stopped working. */
@@ -50,7 +51,11 @@ const CORPUS: readonly Phrasing[] = [
     subject: 'Wealth planning after a liquidity event',
     body: 'I recently sold my business and have around $8M in proceeds to invest. Looking for help with tax-efficient planning and setting up a family office structure. Who should I speak with?',
     category: 'prospect',
-    priority: 'medium',
+    // High, and it was medium before signals carried weight. A stated liquidity event plus money arriving
+    // is the most valuable message this inbox receives, and it reached the top with no dollar threshold
+    // anywhere in the code - the escalation comes from `sold my business` and `to invest`, never from the
+    // size of the figure. The figure rides along in the detail so a human sees it.
+    priority: 'high',
   },
   {
     why: 'all lowercase, no greeting',
@@ -82,7 +87,10 @@ const CORPUS: readonly Phrasing[] = [
     subject: 'Just exploring options',
     body: 'No rush at all — I am early in thinking about whether to work with an advisor and just gathering information.',
     category: 'prospect',
-    priority: 'medium',
+    // Low, and it was medium before `no_urgency` could subtract. A sender who writes "no rush at all" has
+    // told us something, and scoring that the same as saying nothing throws the information away. Still a
+    // real prospect - the category is unchanged, only the urgency moved.
+    priority: 'low',
   },
   {
     why: 'prospect with a real deadline',
@@ -150,7 +158,11 @@ const CORPUS: readonly Phrasing[] = [
   {
     why: 'vendor pitch whose date is the sender’s calendar, not our exposure',
     subject: 'Portfolio analytics platform — quick demo?',
-    body: 'Hi team, we sell portfolio analytics software used by 200+ RIAs. Would love 20 minutes to show you what we do. Are you free next week?',
+    // "Are you free next week?" was here, and `next week` has since been measured out of the deadline
+    // patterns as an availability question rather than a deadline. Replaced with a date a vendor really
+    // does assert, so the vendor exception is still under test: a vendor CAN state a deadline, and it is
+    // still their calendar rather than our exposure.
+    body: 'Hi team, we sell portfolio analytics software used by 200+ RIAs. Would love 20 minutes to show you what we do — our introductory rate ends this Friday.',
     from_org: 'Lumen Analytics',
     category: 'vendor',
     priority: 'low',
@@ -273,6 +285,36 @@ const CORPUS: readonly Phrasing[] = [
     category: 'unreadable',
     priority: 'low',
   },
+  // The two categories the never-firing guards made reachable (D-018). Neither appears in the supplied
+  // queue, which is exactly why they are covered here: a guard is judged on the input it has not seen.
+  {
+    why: 'fraud risk: a payment redirect, whether or not the sender looks legitimate',
+    subject: 'Updated wire instructions for this month’s distribution',
+    body: 'Please use the following new wire instructions for my distribution — our bank changed our routing and account number last week.',
+    category: 'fraud_risk',
+    priority: 'high',
+  },
+  {
+    why: 'fraud risk: reads as routine, and the handling is still verify-by-phone',
+    body: 'Quick admin note — could you change my banking details on file before the next transfer goes out?',
+    category: 'fraud_risk',
+    priority: 'high',
+  },
+  {
+    why: 'compliance: a regulator’s clock starts on arrival, with no date in the text',
+    subject: 'SEC examination request — books and records',
+    body: 'This letter constitutes an examination request from the SEC Division of Examinations. Please respond within 10 business days.',
+    from_org: 'U.S. Securities and Exchange Commission',
+    category: 'compliance',
+    priority: 'high',
+  },
+  {
+    why: 'compliance: an auditor’s confirmation is an obligation, not a favour',
+    body: 'We are conducting the annual audit for a mutual client and require an audit confirmation of holdings as of quarter end.',
+    from_org: 'Harlow & Reid LLP',
+    category: 'compliance',
+    priority: 'high',
+  },
 ];
 
 function message(row: Phrasing, index: number): InboundMessage {
@@ -363,9 +405,12 @@ describe('the two false positives that would be expensive', () => {
 
     expect(referred.body).toContain('a client of yours');
     expect(isPresent(referred, 'self_identified_client')).toBe(false);
-    expect(isPresent(referred, 'referral_language')).toBe(true);
-    // A prospect signal and a referral signal both fired; the tie goes to declaration order, which puts
-    // the person asking for planning under prospect rather than under partnerships.
+    expect(isPresent(referred, 'client_referral_named')).toBe(true);
+    // Arriving through a client's recommendation is prospect evidence. `partner_language` is for a peer
+    // firm proposing an arrangement, and it must NOT fire here - otherwise a warm referral is routed to
+    // partnerships. An earlier version got this row right only because both signals fired once each and
+    // `prospect` happened to be declared first, so list order was doing the work that weight does now.
+    expect(isPresent(referred, 'partner_language')).toBe(false);
     expect(verdictFor(referred).category).toBe('prospect');
   });
 });
@@ -386,14 +431,33 @@ describe('no signals means unknown, not the nearest neighbour', () => {
     expect(verdictFor(named)).toEqual({ category: 'unknown', priority: 'low', confidence: 0 });
   });
 
-  it('scores confidence by how many independent signals agreed', () => {
-    const one = adHoc('What is your account minimum?');
-    const two = adHoc("We sell an analytics platform, and separately I'm recruiting for a senior role.");
+  it('scores confidence on evidential weight and on the margin over the runner-up', () => {
+    const weak = adHoc('What is your account minimum?');
+    const strong = adHoc("We sell an analytics platform, and separately I'm recruiting for a senior role.");
+    const contested = adHoc('Our pricing starts at $400 a month, and we would refer you clients in return.');
 
-    // Repeated phrasings inside one signal are one observation about the message; two different signals
-    // are two. A constant would claim the same certainty for a single weak match.
-    expect(verdictFor(one).confidence).toBe(0.65);
-    expect(verdictFor(two).confidence).toBe(0.8);
+    // Weight and separation are two different things, and counting matches could see neither. Every
+    // category verdict on the supplied queue scored exactly 0.65 under the old function — 0.5 plus one
+    // signal — because a 22-word message does not contain three phrasings of one intent. These three cases
+    // pin the two axes that replaced it.
+    const scores = {
+      weak: verdictFor(weak).confidence,
+      strong: verdictFor(strong).confidence,
+      contested: verdictFor(contested).confidence,
+    };
+
+    // Uncontested but thin: one signal a tyre-kicker could also send.
+    expect(scores.weak).toBeGreaterThan(0.6);
+    expect(scores.weak).toBeLessThan(0.8);
+
+    // Two strong signals agreeing, nothing against them. Capped below certainty — a regex list is not sure.
+    expect(scores.strong).toBe(0.9);
+    expect(scores.strong).toBeGreaterThan(scores.weak);
+
+    // Vendor evidence and partner evidence both fired. A genuinely uncertain read has to land BELOW the
+    // threshold at which this layer may override the model, which is the behaviour the old function could
+    // not express at all: it would have called this 0.8 for having two matches.
+    expect(scores.contested).toBeLessThan(CONFIDENCE_THRESHOLD);
   });
 
   it('separates a vague message from an unreadable one', () => {
@@ -422,19 +486,22 @@ describe('priority moves on deadlines and money, never on tone', () => {
   it('leaves an angry message with no deadline and no charge dispute where it was', () => {
     const angry = adHoc('This is completely unacceptable. I have asked twice now and nobody has replied.');
 
-    expect(isPresent(angry, 'complaint_language')).toBe(true);
+    expect(isPresent(angry, 'dissatisfaction')).toBe(true);
+    expect(isPresent(angry, 'fee_dispute')).toBe(false);
     expect(isPresent(angry, 'explicit_deadline')).toBe(false);
-    expect(verdictFor(angry).priority).toBe('low');
+    // Tone alone. The sender never says they are a client, so `dissatisfaction` is worth one point of
+    // category evidence and its priority modifier does not apply outside `existing_client` at all.
+    expect(verdictFor(angry).priority).not.toBe('high');
   });
 
   it('does not read a discourse marker as a complaint, or raise priority on one', () => {
     const routine = adHoc("Existing client here. Frankly, I'd like to get our quarterly review booked at some point.");
-    const complaint = reading(observe(routine), 'complaint_language');
+    const complaint = reading(observe(routine), 'dissatisfaction');
 
-    // Nothing here is a dispute: no charge, no service failure, no deadline. `complaint_language` is
-    // documented as "dissatisfaction about a charge or a service", and for an existing client it sets a
-    // `high` floor — so whatever it matches here promotes a scheduling request to the top of the queue on
-    // register alone, which is the one thing priority is defined never to do.
+    // Nothing here is a dispute: no charge, no service failure, no deadline. This sender IS an existing
+    // client, which is the only category where `dissatisfaction` carries a priority point - so a match on
+    // "frankly" would move a scheduling request up the queue on register alone, which is the one thing
+    // priority is defined never to do.
     expect(isPresent(routine, 'explicit_deadline')).toBe(false);
     expect({ present: complaint.present, matched: complaint.detail ?? null }).toEqual({
       present: false,
@@ -446,7 +513,8 @@ describe('priority moves on deadlines and money, never on tone', () => {
   it('raises priority for a calm message with a stated deadline', () => {
     const calm = adHoc('Could you send the signed forms back by Thursday? Happy to help if you need anything.');
 
-    expect(isPresent(calm, 'complaint_language')).toBe(false);
+    expect(isPresent(calm, 'dissatisfaction')).toBe(false);
+    expect(isPresent(calm, 'fee_dispute')).toBe(false);
     expect(isPresent(calm, 'explicit_deadline')).toBe(true);
     expect(verdictFor(calm).priority).toBe('high');
   });

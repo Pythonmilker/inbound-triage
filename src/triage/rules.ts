@@ -29,115 +29,217 @@ import {
 } from './observations.js';
 
 /**
- * Which signals count as independent evidence for a category. A Record rather than a list, so adding a
- * category to types.ts fails to compile here until its evidence is declared — the taxonomy cannot grow a
- * label that the floor silently never selects.
+ * WEIGHTED EVIDENCE. Each signal carries the strength of the inference it supports, 1 to 5, and a category
+ * scores the sum of the signals present for it. Highest sum wins.
  *
- * Two rows are empty on purpose. `unknown` is what is left when nothing matched. `unreadable` is decided
- * by `unreadableReason` below and must not also be reachable by scoring: a stray replacement character
- * in an otherwise readable message is damage in the transport, not an unreadable message, and if both
- * paths could select the label they could disagree.
+ * Weight is evidential strength, not importance: `prospect_language` is 2 because a competitor or a
+ * tyre-kicker asks about minimums too, while `liquidity_event` is 5 because selling a business is a fact
+ * the sender volunteered about their own circumstances and fits almost nothing else.
+ *
+ * This replaced counting matches, which could not discriminate at all on this traffic. Measured: the
+ * messages average 125 characters and 22 words, so a message does not contain three redundant phrasings of
+ * one intent - every category verdict scored exactly 0.65, being 0.5 + one signal, and the confidence
+ * function was documented as rising with agreement while being unable to rise in practice.
+ *
+ * Weighting also removed an accident. Ties used to be broken by whichever category was declared first, and
+ * on one real message that arbitrary order was the only reason the right answer came out.
+ *
+ * A Record rather than a list, so adding a category to types.ts fails to compile here until its evidence is
+ * declared - the taxonomy cannot grow a label the floor silently never selects.
+ *
+ * Two rows are empty on purpose. `unknown` is what is left when nothing matched. `unreadable` is decided by
+ * `unreadableReason` below and must not also be reachable by scoring: a stray replacement character in an
+ * otherwise readable message is damage in the transport, not an unreadable message, and if both paths could
+ * select the label they could disagree.
  */
-const CATEGORY_EVIDENCE: Record<Category, readonly SignalId[]> = {
-  prospect: ['prospect_language'],
-  existing_client: ['self_identified_client'],
-  vendor: ['selling_language', 'recruiting_language'],
-  partner_referral: ['referral_language'],
-  noise: ['bulk_markers'],
+interface Evidence {
+  signal: SignalId;
+  /** 1 anyone could say it - 5 a volunteered fact that fits this category and little else. */
+  weight: number;
+}
+
+const CATEGORY_EVIDENCE: Record<Category, readonly Evidence[]> = {
+  fraud_risk: [{ signal: 'wire_change', weight: 5 }],
+  compliance: [{ signal: 'regulatory_notice', weight: 5 }],
+  existing_client: [
+    { signal: 'self_identified_client', weight: 5 },
+    { signal: 'fee_dispute', weight: 3 },
+    { signal: 'attrition', weight: 3 },
+    { signal: 'escalation', weight: 2 },
+    { signal: 'third_party_requester', weight: 1 },
+    // `dissatisfaction` is deliberately NOT here. It was, at weight 1, and that was circular: tone alone
+    // selected `existing_client`, and being `existing_client` is the one condition under which the
+    // dissatisfaction modifier is allowed to raise priority. So "this is completely unacceptable" from a
+    // stranger scored a category on tone and then used that category to license tone as urgency, landing
+    // an unidentified sender at high. Anger says nothing about who someone is. It stays a priority
+    // modifier for people we have independently established are clients, and no part of the category read.
+  ],
+  prospect: [
+    { signal: 'liquidity_event', weight: 5 },
+    { signal: 'money_inbound', weight: 4 },
+    { signal: 'client_referral_named', weight: 3 },
+    { signal: 'prospect_language', weight: 2 },
+  ],
+  vendor: [
+    { signal: 'selling_language', weight: 4 },
+    { signal: 'recruiting_language', weight: 4 },
+    { signal: 'money_outbound', weight: 3 },
+  ],
+  partner_referral: [{ signal: 'partner_language', weight: 3 }],
+  noise: [{ signal: 'bulk_markers', weight: 4 }],
   unknown: [],
   unreadable: [],
 };
 
 /** Counted only for the confidence attached to an unreadable ruling. See CATEGORY_EVIDENCE for why. */
-const UNREADABLE_SUPPORT: readonly SignalId[] = ['body_is_negligible', 'transport_garbage'];
+const UNREADABLE_SUPPORT: readonly Evidence[] = [
+  { signal: 'body_is_negligible', weight: 4 },
+  { signal: 'transport_garbage', weight: 4 },
+];
 
 /**
- * The floor a category sets before any signal raises it. A category can say "this needs a human"; it
- * cannot say "this is urgent" — priority is deadline and money at risk, never tone (DESIGN §4.2).
+ * The floor a category sets before any modifier moves it. A category can say "this needs a human"; on its
+ * own it cannot say "this is urgent" - priority is deadline and money at risk, never tone.
+ *
+ * The two exceptions are `fraud_risk` and `compliance`, which are high on arrival. A payment redirect and a
+ * regulator's letter both carry a clock whether or not the sender spells a date out, and in both cases the
+ * cost of being slow is not a delayed reply.
  */
 const CATEGORY_PRIORITY_FLOOR: Record<Category, Priority> = {
-  prospect: 'medium',
+  fraud_risk: 'high',
+  compliance: 'high',
   existing_client: 'medium',
-  vendor: 'low',
+  prospect: 'medium',
   partner_referral: 'medium',
+  vendor: 'low',
   noise: 'low',
   unknown: 'low',
   unreadable: 'low',
 };
 
-interface PriorityRule {
+/**
+ * SIGNED MODIFIERS on the category floor. Priority is a second, independent sum: the category says what
+ * kind of thing this is, the modifiers say how hard it is pressing.
+ *
+ * Two of these subtract, which reverses an earlier invariant that rules could only ever raise priority.
+ * That invariant survives where it matters - reconciliation still takes the HIGHER of the rule and model
+ * priorities, so a subtraction can lower this layer's own read and can never lower the final verdict below
+ * what the model concluded. Inside this layer, a sender who writes "no rush at all" has told us something,
+ * and treating that as equivalent to saying nothing throws the information away.
+ *
+ * `suppressedBy` is what stops money buying urgency inside a sales pitch. A vendor quoting a large number
+ * is describing their own book, not ours.
+ */
+interface PriorityModifier {
   signal: SignalId;
-  floor: Priority;
-  /** Categories the floor does not apply to. */
+  points: number;
+  /** Categories the modifier does not apply to. */
   exceptFor?: readonly Category[];
-  /** When set, the floor applies to these categories and no others. */
+  /** When set, the modifier applies to these categories and no others. */
   onlyFor?: readonly Category[];
+  /** Any of these being present cancels the modifier, whatever the category. */
+  suppressedBy?: readonly SignalId[];
 }
 
-/**
- * Priority rules are rows, exactly like categories: one signal, and the floor it sets. A rule can only
- * ever raise priority — that is a non-negotiable, because a model that under-reads an angry client is
- * the expensive failure and a false high costs one human glance.
- */
-const PRIORITY_RULES: readonly PriorityRule[] = [
+const NEVER: readonly Category[] = ['noise', 'unreadable'];
+const SALES_EVIDENCE: readonly SignalId[] = ['selling_language', 'recruiting_language'];
+
+const PRIORITY_MODIFIERS: readonly PriorityModifier[] = [
   // A deadline in a pitch is the sender's calendar, not our exposure: a vendor asking "are you free next
   // week?" has stated no obligation of ours, and a date inside MIME garbage is not a date at all. The
-  // floor deliberately still applies to `unknown` — a stated deadline is a fact about the message, not
+  // modifier deliberately still applies to `unknown` - a stated deadline is a fact about the message, not
   // about who sent it, and reconciliation takes the maximum priority regardless of category confidence.
-  { signal: 'explicit_deadline', floor: 'high', exceptFor: ['vendor', 'noise', 'unreadable'] },
-  // "an account or fee dispute from an existing client" — money at risk. Anger on its own is not a rule
-  // here and must not become one.
-  { signal: 'complaint_language', floor: 'high', onlyFor: ['existing_client'] },
+  { signal: 'explicit_deadline', points: 2, exceptFor: [...NEVER, 'vendor'] },
+  // Money at risk, on an account that is already ours.
+  { signal: 'fee_dispute', points: 2, exceptFor: [...NEVER, 'vendor'] },
+  { signal: 'attrition', points: 2, exceptFor: NEVER },
+  { signal: 'escalation', points: 2, exceptFor: NEVER },
+  { signal: 'wire_change', points: 2, exceptFor: NEVER },
+  // Money arriving. Both are cancelled by sales evidence, which is the whole point of scoring direction
+  // instead of magnitude: a figure inside a pitch cannot buy priority.
+  { signal: 'liquidity_event', points: 2, exceptFor: [...NEVER, 'vendor'], suppressedBy: SALES_EVIDENCE },
+  {
+    signal: 'money_inbound',
+    points: 2,
+    exceptFor: [...NEVER, 'vendor'],
+    suppressedBy: [...SALES_EVIDENCE, 'money_outbound'],
+  },
+  // Money leaving. Someone billing the firm is work for operations, not for an advisor.
+  { signal: 'money_outbound', points: -1, exceptFor: NEVER },
+  // An adjective, worth half a date.
+  { signal: 'time_sensitive_claim', points: 1, exceptFor: [...NEVER, 'vendor'] },
+  { signal: 'third_party_requester', points: 1, exceptFor: NEVER },
+  // Anger is not urgency. It is worth one point from someone who is already a client, because retention is
+  // the exposure, and nothing at all from anyone else.
+  { signal: 'dissatisfaction', points: 1, onlyFor: ['existing_client'] },
+  // The sender said there is no clock. That is evidence, not silence.
+  { signal: 'no_urgency', points: -1, exceptFor: NEVER },
 ];
 
 /**
- * Confidence rises with the number of INDEPENDENT signals that agreed: one signal 0.65, two 0.8, three
- * or more 0.9. It never reaches 1.0, and it is never a constant — a fixed 0.9 would claim the same
- * certainty for one weak match as for three converging ones.
+ * Confidence in the winning category, from two things a count cannot see: how strong the evidence is, and
+ * how far ahead of the runner-up it is.
  *
- * Repeated phrasings inside a single signal do not count twice. Three ways of saying "not happy" is one
- * observation about the message, not three independent ones.
+ * Separation is what the old count-based function was missing. Two categories tied on weak evidence is a
+ * genuinely uncertain read, and it now scores below the threshold at which this layer is allowed to
+ * override the model - which is the behaviour you want, and which "one signal, so 0.65" could not express.
+ *
+ * It never reaches 1.0. A regex list is not certainty.
  */
-const CONFIDENCE_BASE = 0.5;
-const CONFIDENCE_PER_SIGNAL = 0.15;
+const CONFIDENCE_BASE = 0.45;
+const STRENGTH_SHARE = 0.35;
+const SEPARATION_SHARE = 0.2;
 const CONFIDENCE_CEILING = 0.9;
+/** The weight at which evidence counts as fully strong: two solid signals agreeing. */
+const STRENGTH_SATURATION = 8;
 
-function confidenceFor(agreed: number): number {
-  if (agreed <= 0) return 0;
-  const raw = Math.min(CONFIDENCE_CEILING, CONFIDENCE_BASE + CONFIDENCE_PER_SIGNAL * agreed);
-  return Math.round(raw * 100) / 100;
+function confidenceFor(winner: number, runnerUp: number): number {
+  if (winner <= 0) return 0;
+  const strength = Math.min(1, winner / STRENGTH_SATURATION);
+  const separation = (winner - runnerUp) / winner;
+  const raw = CONFIDENCE_BASE + STRENGTH_SHARE * strength + SEPARATION_SHARE * separation;
+  return Math.round(Math.min(CONFIDENCE_CEILING, raw) * 100) / 100;
 }
 
 function isPresent(signals: Signal[], id: SignalId): boolean {
   return signals.some((s) => s.id === id && s.present);
 }
 
-function countAgreeing(signals: Signal[], ids: readonly SignalId[]): number {
-  return ids.filter((id) => isPresent(signals, id)).length;
+function weightPresent(signals: Signal[], evidence: readonly Evidence[]): number {
+  return evidence.reduce((sum, e) => (isPresent(signals, e.signal) ? sum + e.weight : sum), 0);
 }
 
-function raise(current: Priority, floor: Priority): Priority {
-  return PRIORITY_RANK[floor] > PRIORITY_RANK[current] ? floor : current;
+const MIN_RANK = Math.min(...Object.values(PRIORITY_RANK));
+const MAX_RANK = Math.max(...Object.values(PRIORITY_RANK));
+
+function rankToPriority(rank: number): Priority {
+  const clamped = Math.max(MIN_RANK, Math.min(MAX_RANK, rank));
+  const found = (Object.keys(PRIORITY_RANK) as Priority[]).find((p) => PRIORITY_RANK[p] === clamped);
+  // Unreachable: the clamp guarantees a rank every Priority maps onto. Thrown rather than defaulted so a
+  // future rank that is not a whole number fails loudly instead of silently becoming `low`.
+  if (found === undefined) throw new Error(`no priority for rank ${rank}`);
+  return found;
 }
 
 function priorityFor(category: Category, signals: Signal[]): Priority {
-  let priority = CATEGORY_PRIORITY_FLOOR[category];
-  for (const rule of PRIORITY_RULES) {
-    if (!isPresent(signals, rule.signal)) continue;
-    if (rule.exceptFor?.includes(category)) continue;
-    if (rule.onlyFor && !rule.onlyFor.includes(category)) continue;
-    priority = raise(priority, rule.floor);
+  let rank = PRIORITY_RANK[CATEGORY_PRIORITY_FLOOR[category]];
+  for (const mod of PRIORITY_MODIFIERS) {
+    if (!isPresent(signals, mod.signal)) continue;
+    if (mod.exceptFor?.includes(category)) continue;
+    if (mod.onlyFor && !mod.onlyFor.includes(category)) continue;
+    if (mod.suppressedBy?.some((id) => isPresent(signals, id))) continue;
+    rank += mod.points;
   }
-  return priority;
+  return rankToPriority(rank);
 }
 
 /**
- * Why a message has nothing checkable in it, or null when it is a real message — however vague.
+ * Why a message has nothing checkable in it, or null when it is a real message - however vague.
  *
- * A merely vague message is NOT unreadable. "Just following up" is real correspondence whose intent
- * cannot be determined, which is `unknown` — a different label with a different next action (D-012).
- * `no-id` is not returned here either: a missing identifier is a defect in the record rather than in the
- * text, so the loader rules on it (DESIGN §4.1).
+ * A merely vague message is NOT unreadable. "Just following up" is real correspondence whose intent cannot
+ * be determined, which is `unknown` - a different label with a different next action (D-012). `no-id` is
+ * not returned here either: a missing identifier is a defect in the record rather than in the text, so the
+ * loader rules on it (DESIGN §4.1).
  */
 export function unreadableReason(m: InboundMessage, signals: Signal[]): UnreadableReason | null {
   // Check order is load-bearing. An empty body is also below the word-character threshold, and a body
@@ -156,28 +258,33 @@ export function applyRules(m: InboundMessage, signals: Signal[]): RulesVerdict {
     return {
       category: 'unreadable',
       priority: CATEGORY_PRIORITY_FLOOR.unreadable,
-      confidence: confidenceFor(countAgreeing(signals, UNREADABLE_SUPPORT)),
+      confidence: confidenceFor(weightPresent(signals, UNREADABLE_SUPPORT), 0),
     };
   }
 
-  // The most agreeing signals wins. Ties go to whichever category is declared first in CATEGORIES: the
-  // loop walks that order and replaces the leader only on a strictly higher count, so the same input
-  // always produces the same verdict, with no dependence on sort stability or object key order.
+  // The heaviest evidence wins, and the runner-up is kept because how close it came IS the uncertainty.
+  // The walk follows CATEGORIES order and replaces the leader only on a strictly greater weight, so the
+  // same input always produces the same verdict with no dependence on sort stability or key order. Unlike
+  // the count-based version this order almost never decides anything, because distinct weights rarely tie.
   let best: Category = 'unknown';
-  let bestCount = 0;
+  let bestWeight = 0;
+  let runnerUp = 0;
   for (const row of CATEGORIES) {
-    const count = countAgreeing(signals, CATEGORY_EVIDENCE[row.id]);
-    if (count > bestCount) {
+    const weight = weightPresent(signals, CATEGORY_EVIDENCE[row.id]);
+    if (weight > bestWeight) {
+      runnerUp = bestWeight;
       best = row.id;
-      bestCount = count;
+      bestWeight = weight;
+    } else if (weight > runnerUp) {
+      runnerUp = weight;
     }
   }
 
-  // Nothing agreed with anything: `unknown` at zero, never the nearest neighbour. Past this point a
-  // guess is indistinguishable from evidence, and reconciliation would weigh it as if it were.
+  // Nothing agreed with anything: `unknown` at zero, never the nearest neighbour. Past this point a guess
+  // is indistinguishable from evidence, and reconciliation would weigh it as if it were.
   return {
     category: best,
     priority: priorityFor(best, signals),
-    confidence: confidenceFor(bestCount),
+    confidence: confidenceFor(bestWeight, runnerUp),
   };
 }

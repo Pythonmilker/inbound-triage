@@ -161,10 +161,22 @@ model {
 
         observations = component 'Observations' {
           #built
-          summary 'Turns each message into a fixed list of factual readings — every signal, present or absent.'
+          summary 'Turns each message into a fixed list of 23 factual readings — every signal, present or absent.'
           description '''
-            Does the sender claim to be a client, is there a deadline, is there complaint language, is this
-            bulk mail, is the body effectively empty, does it contain transport garbage.
+            Twenty-three readings: who the sender says they are, which way money is flowing, whether a
+            deadline exists, whether they disclaimed urgency, and four fraud and compliance guards that
+            fire on nothing in the supplied queue on purpose.
+
+            **Direction and possession decide sign, not the noun.** *Our invoice* is a vendor billing us;
+            *the invoice you sent* is a client asking about ours. *To invest* is money arriving; *payment
+            is due* is money leaving. The same word carries opposite meaning one determiner apart, so the
+            patterns capture the determiner.
+
+            **An amount is displayed, never scored.** `$8M` rides along in the detail so a human sees the
+            figure, and contributes nothing — it appears both in *"I have $8M to invest"* and in *"our
+            platform manages $8M"*, and only direction separates the best message in the queue from a cold
+            pitch. This replaced a proposed dollar threshold, and then a magnitude tier, both of which
+            traded one arbitrary number for three.
 
             The list is *symmetric*: every signal reported either way, in a fixed order, with no emphasis
             on any of them. That is what keeps it an instrument reading rather than a suggestion — and it
@@ -181,8 +193,20 @@ model {
           #built
           summary 'The deterministic verdict, from the observations alone. Not a fallback — it always runs.'
           description '''
-            A category and a priority with a confidence that rises with the number of *independent* signals
-            that agreed. It is one of the two inputs the next stage combines, on every message.
+            **Two independent sums.** Category is the heaviest weighted evidence, where weight is
+            evidential strength: asking about minimums scores 2 because a competitor asks it too, while
+            selling a business scores 5 because it is a fact the sender volunteered about themselves.
+            Priority is the category's own floor plus *signed* modifiers — a stated deadline adds two,
+            *"no rush at all"* subtracts one.
+
+            Counting matches replaced nothing else and could discriminate nothing: the messages average 22
+            words, so they never contain three phrasings of one intent, and every verdict scored exactly
+            0.65. Confidence now moves on evidential weight *and* on the margin over the runner-up, so a
+            contested read lands below the threshold at which this layer may override the model.
+
+            Sales evidence **suppresses** the money escalation outright: a figure inside a pitch cannot
+            buy priority. Subtraction is safe here because reconciliation still takes the *higher* of the
+            two priorities, so this layer can lower its own read and never the final verdict.
           '''
           link ../src/triage/rules.ts 'source'
           metadata {
