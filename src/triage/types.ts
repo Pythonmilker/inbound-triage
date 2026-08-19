@@ -1,6 +1,22 @@
 /**
  * The taxonomy, as data.
  *
+ * SEVEN CATEGORIES, and the shape of them is a product decision rather than a modelling one. This tool
+ * exists to catch leads and to rank the clients the firm already has, so the taxonomy is cut where that
+ * purpose cuts: everything on the path of a new or an existing client gets its own label, everything off
+ * that path is `junk`.
+ *
+ * `vendor`, `automated` and `unreadable` used to be three separate labels. They were collapsed because the
+ * distinctions between them, real as they are, do not change what anyone does — all three get deleted — and
+ * a taxonomy that splits hairs the user does not care about costs discrimination on the labels that matter.
+ * What was worth keeping from the old `unreadable` is not its label but its `reason`, which survives on the
+ * row: "the body is transport damage" tells an operator the intake path may be broken, and that is
+ * actionable in a way that a separate category never was.
+ *
+ * `unknown` deliberately did NOT collapse into `junk`. Junk means we know it is off the path; unknown means
+ * we cannot tell, and a vague message from a real person may well be the lead. Binning it would defeat the
+ * purpose the rest of the taxonomy is cut for.
+ *
  * Categories and priority rules are rows, not `if` branches. That is deliberate: doubling the taxonomy
  * from seven categories to fourteen means adding rows and one enum entry, with no new branch, no new
  * table, and no migration beyond an insert. What actually strains at double is not capacity but
@@ -27,18 +43,11 @@ export const CATEGORIES = [
     routing: 'Route to the servicing advisor who owns the relationship.',
   },
   {
-    id: 'vendor',
-    label: 'Vendor',
-    definition:
-      'Someone selling a product or service to the firm, including unsolicited demos and recruiter outreach.',
-    routing: 'Route to operations, or decline.',
-  },
-  {
     id: 'partner_referral',
     label: 'Partner / referral',
     definition:
       'A peer firm or professional proposing a referral or partnership arrangement, rather than buying or selling a product.',
-    routing: 'Route to partnerships — this is neither a prospect nor a vendor.',
+    routing: 'Route to partnerships — this is a source of clients, not a client.',
   },
   {
     id: 'fraud_risk',
@@ -55,28 +64,18 @@ export const CATEGORIES = [
     routing: 'Route to the chief compliance officer. These carry statutory clocks.',
   },
   {
-    id: 'automated',
-    label: 'Automated',
-    definition:
-      'Sent by a machine, or to a list rather than to a person: newsletters, digests, notifications, automated alerts.',
-    routing: 'No action needed. Consider filtering it at the inbox.',
-  },
-  {
     id: 'unknown',
     label: 'Unknown',
     definition:
       'A genuine message from a real person whose intent cannot be determined from what they wrote — for example a follow-up to a conversation the inbox has no record of.',
-    routing: 'Reply and ask what they need.',
+    routing: 'Reply and ask what they need. This may be a client or a prospect — that is exactly what is unknown.',
   },
   {
-    id: 'unreadable',
-    label: 'Unreadable',
+    id: 'junk',
+    label: 'Junk',
     definition:
-      'There is nothing checkable in the message at all: an empty body, a single punctuation mark, or corrupted transport data.',
-    routing: 'Discard, or check whether the intake form is broken.',
-    // Decided by the rule layer before any model call, and therefore NOT offered to the model. See
-    // MODEL_CATEGORY_IDS below.
-    decidedBy: 'rules',
+      'Nothing in the path of a new or an existing client: someone selling to the firm, a recruiter, machine-sent mail nobody needs to answer, or a body with nothing readable in it.',
+    routing: 'No action needed — delete or filter it. If the body was unreadable, check whether the intake path is broken.',
   },
 ] as const;
 
@@ -85,26 +84,14 @@ export type Category = (typeof CATEGORIES)[number]['id'];
 export const CATEGORY_IDS = CATEGORIES.map((c) => c.id) as readonly Category[];
 
 /**
- * The categories the MODEL may assign. Every label a judgment can reach, and no label the machine has
- * already settled.
+ * Every category is model-selectable again, so there is no narrowed set any more.
  *
- * `unreadable` is excluded because it is not a judgment about intent — it is a measurement of the bytes,
- * made deterministically before the model is called at all. An unreadable message short-circuits: the row
- * is written with its `reason` and no request is ever sent (see run.ts). So every message that reaches the
- * model has, by construction, already been found readable.
- *
- * Offering the label anyway was a defect. `reason` is null on every model path, so a model that picked
- * `unreadable` produced a row claiming there was nothing checkable in a message the rule layer had just
- * proved has content, with no reason displayed to explain the contradiction. A choice that can only ever
- * be wrong should not be on the menu.
- *
- * Derived from the rows rather than hardcoded, so a future machine-decided label is excluded by declaring
- * `decidedBy: 'rules'` on it and a future judgment label is offered automatically. tests/taxonomy.test.ts
- * pins both directions.
+ * There was one. `unreadable` was excluded from the model's menu because a model picking it produced a
+ * self-contradictory row: it asserted there was nothing checkable in a message that had already been found
+ * readable, with no `reason` to explain it. Collapsing the label into `junk` dissolved that: "this is junk"
+ * is a complete statement whether or not a reason accompanies it, so the exclusion had nothing left to
+ * protect and a filter that filters nothing is worse than no filter.
  */
-export const MODEL_CATEGORY_IDS = CATEGORIES.filter((c) => !('decidedBy' in c)).map(
-  (c) => c.id,
-) as readonly Category[];
 
 /**
  * Priority is defined by deadline and money at risk — never by tone. An angry message about a small fee is
@@ -153,14 +140,19 @@ export interface InboundMessage {
  */
 export const ORG_SENTINELS = ['(individual)', '(unknown)', ''] as const;
 
-/** Why a message was ruled unreadable. Recorded so the row can say which, not merely that. */
+/**
+ * Why a `junk` row had nothing readable in it. Recorded so the row can say which, not merely that.
+ *
+ * This is the part of the old `unreadable` category that was worth keeping. "The body is transport damage"
+ * points at the intake path; "the body is empty" points at the form. A category could not say either.
+ */
 export type UnreadableReason = 'empty-body' | 'garbled' | 'no-id' | 'below-threshold';
 
 /**
  * `category` says what the message IS. `status` says whether we FINISHED processing it. Keeping them apart
  * is what removed the parking bucket from an earlier design: a failed call never has to masquerade as a
- * category, and an unreadable message is still `triaged` because we did finish — the answer is "there is
- * nothing here".
+ * category, and a message with nothing readable in it is still `triaged` because we did finish — the answer
+ * is "there is nothing here".
  */
 export type TriageStatus = 'triaged' | 'pending_retry';
 

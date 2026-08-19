@@ -323,11 +323,26 @@ adds **no** new `if` branch, no new table, and no migration beyond an insert. Th
 from the same rows, so a category cannot exist in the data and be un-selectable by the model, or vice
 versa — a test pins that.
 
-**This was exercised rather than asserted.** The taxonomy went from seven categories to nine when the
-never-firing guards made `fraud_risk` and `compliance` reachable. The cost was two rows in `CATEGORIES`,
-two rows in `CATEGORY_EVIDENCE`, two in `CATEGORY_PRIORITY_FLOOR`, and four test-corpus rows. No branch
-changed. The `Record<Category, …>` types refused to compile until every new label had declared evidence
-and a floor, which is the property that makes the claim checkable instead of hopeful.
+**This was exercised in both directions rather than asserted.** The taxonomy grew from seven to nine when
+the never-firing guards made `fraud_risk` and `compliance` reachable, then shrank to seven again when
+`vendor`, `automated` and `unreadable` collapsed into `junk`. Growing cost two rows in `CATEGORIES`, two in
+`CATEGORY_EVIDENCE`, two in `CATEGORY_PRIORITY_FLOOR` and four corpus rows. Shrinking cost less: three
+evidence lists merged into one, and the modifier exception lists got *simpler* — several rows had named
+three excluded categories plus `vendor` a fourth time, and now name one. No branch changed either way. The
+`Record<Category, …>` types refused to compile until every label had declared evidence and a floor, which
+is what makes the claim checkable instead of hopeful.
+
+**Where the taxonomy is cut is a product decision, not a modelling one.** The tool exists to catch leads and
+rank existing clients, so everything on that path gets its own label and everything off it is one bucket.
+The distinctions inside `junk` are real — a recruiter is not a newsletter, and a newsletter is not a
+corrupted body — but none of them changes what an operator does, and a taxonomy that splits hairs nobody
+looks at spends its discrimination in the wrong place. What was worth keeping from `unreadable` is not the
+label but the **`reason`** on the row: *"the body is transport damage"* tells an operator the intake path
+may be broken, which is actionable in a way a separate category never was.
+
+`unknown` deliberately did **not** collapse into `junk`. Junk means we know the message is off the path;
+unknown means we cannot tell, and a vague message from a real person may be the lead. Binning it would
+defeat the purpose the rest of the taxonomy is cut for.
 
 #### The signal model — weighted, signed, and direction-aware
 

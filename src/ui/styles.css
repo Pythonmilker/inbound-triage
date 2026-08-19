@@ -339,22 +339,24 @@ button:disabled {
   --chip-line: var(--blue);
 }
 
-.cat-vendor {
-  --chip-fg: var(--purple);
-  --chip-bg: var(--purple-bg);
-  --chip-line: var(--purple);
-}
-
 .cat-partner_referral {
   --chip-fg: var(--teal);
   --chip-bg: var(--teal-bg);
   --chip-line: var(--teal);
 }
 
-.cat-automated {
-  --chip-fg: var(--grey);
-  --chip-bg: var(--grey-bg);
-  --chip-line: var(--grey);
+/* The two that carry a clock. Loud on purpose: a wire-change request read as routine is the expensive
+   failure, and a regulator's letter has a statutory deadline whether or not anyone notices it. */
+.cat-fraud_risk {
+  --chip-fg: var(--fail);
+  --chip-bg: var(--fail-bg);
+  --chip-line: var(--fail);
+}
+
+.cat-compliance {
+  --chip-fg: var(--warn);
+  --chip-bg: var(--warn-bg);
+  --chip-line: var(--warn);
 }
 
 .cat-unknown {
@@ -363,12 +365,12 @@ button:disabled {
   --chip-line: var(--indigo);
 }
 
-/* Neutral and dashed: unprocessable CONTENT, not a broken app. Never move this into the red family. */
-.cat-unreadable {
-  --chip-fg: var(--slate);
-  --chip-bg: var(--slate-bg);
-  --chip-line: var(--slate);
-  border-style: dashed;
+/* Neutral, never the red family: junk is a verdict about the message, not a sign the app broke. This one
+   class replaced three - vendor, automated and unreadable - which all rendered as "ignore" anyway. */
+.cat-junk {
+  --chip-fg: var(--grey);
+  --chip-bg: var(--grey-bg);
+  --chip-line: var(--grey);
 }
 
 .tone-pending {

@@ -15,7 +15,7 @@
  * fields, and an unexpected field is indistinguishable from a hallucinated one.
  */
 
-import { MODEL_CATEGORY_IDS, PRIORITY_IDS } from './types.js';
+import { CATEGORY_IDS, PRIORITY_IDS } from './types.js';
 
 export const TRIAGE_SCHEMA_NAME = 'triage_verdict';
 
@@ -36,7 +36,7 @@ export const TRIAGE_SCHEMA = {
     },
     category: {
       type: 'string',
-      enum: [...MODEL_CATEGORY_IDS],
+      enum: [...CATEGORY_IDS],
       description: 'Exactly one category id from the taxonomy given in the system prompt.',
     },
     priority: {

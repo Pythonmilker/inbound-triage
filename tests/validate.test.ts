@@ -159,9 +159,9 @@ describe('a near-miss enum is a failure, never a coercion', () => {
   });
 
   it('accepts the exact ids', () => {
-    const verdict = accepted(withPatch({ category: 'automated', priority: 'low' }));
+    const verdict = accepted(withPatch({ category: 'junk', priority: 'low' }));
 
-    expect(verdict.category).toBe('automated');
+    expect(verdict.category).toBe('junk');
     expect(verdict.priority).toBe('low');
   });
 });

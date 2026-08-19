@@ -11,7 +11,7 @@
  */
 
 import { FIELD_LIMITS, TRIAGE_SCHEMA } from './schema.js';
-import { MODEL_CATEGORY_IDS, PRIORITY_IDS } from './types.js';
+import { CATEGORY_IDS, PRIORITY_IDS } from './types.js';
 import type { Category, FailureKind, ModelVerdict, Priority } from './types.js';
 
 /**
@@ -106,7 +106,7 @@ function validateObject(raw: unknown): ValidationOk | ValidationErr {
   const category = raw['category'];
   if (category !== undefined) {
     if (isCategory(category)) draft.category = category;
-    else violation(`category ${quoted(category)} is not one of: ${MODEL_CATEGORY_IDS.join(', ')}`);
+    else violation(`category ${quoted(category)} is not one of: ${CATEGORY_IDS.join(', ')}`);
   }
 
   const priority = raw['priority'];
@@ -228,13 +228,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-/**
- * A category the MODEL is allowed to assign — deliberately narrower than every category that exists. The
- * schema already refuses the machine-decided ones, and this re-checks it: a provider that ignores the enum
- * must not slip a label past us that the design settled before the call was made.
- */
 function isCategory(value: unknown): value is Category {
-  return typeof value === 'string' && (MODEL_CATEGORY_IDS as readonly string[]).includes(value);
+  return typeof value === 'string' && (CATEGORY_IDS as readonly string[]).includes(value);
 }
 
 function isPriority(value: unknown): value is Priority {

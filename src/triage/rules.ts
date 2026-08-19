@@ -47,10 +47,12 @@ import {
  * A Record rather than a list, so adding a category to types.ts fails to compile here until its evidence is
  * declared - the taxonomy cannot grow a label the floor silently never selects.
  *
- * Two rows are empty on purpose. `unknown` is what is left when nothing matched. `unreadable` is decided by
- * `unreadableReason` below and must not also be reachable by scoring: a stray replacement character in an
- * otherwise readable message is damage in the transport, not an unreadable message, and if both paths could
- * select the label they could disagree.
+ * One row is empty on purpose: `unknown` is what is left when nothing matched.
+ *
+ * `junk` carries the evidence that used to be split across three labels — a vendor selling, a recruiter, a
+ * machine sending, someone billing us. They were collapsed because none of those distinctions changes what
+ * anyone does with the row, and a taxonomy that splits hairs the user does not care about spends its
+ * discrimination in the wrong place. See types.ts.
  */
 interface Evidence {
   signal: SignalId;
@@ -59,8 +61,12 @@ interface Evidence {
 }
 
 const CATEGORY_EVIDENCE: Record<Category, readonly Evidence[]> = {
-  fraud_risk: [{ signal: 'wire_change', weight: 5 }],
-  compliance: [{ signal: 'regulatory_notice', weight: 5 }],
+  prospect: [
+    { signal: 'liquidity_event', weight: 5 },
+    { signal: 'money_inbound', weight: 4 },
+    { signal: 'client_referral_named', weight: 3 },
+    { signal: 'prospect_language', weight: 2 },
+  ],
   existing_client: [
     { signal: 'self_identified_client', weight: 5 },
     { signal: 'fee_dispute', weight: 3 },
@@ -74,24 +80,27 @@ const CATEGORY_EVIDENCE: Record<Category, readonly Evidence[]> = {
     // an unidentified sender at high. Anger says nothing about who someone is. It stays a priority
     // modifier for people we have independently established are clients, and no part of the category read.
   ],
-  prospect: [
-    { signal: 'liquidity_event', weight: 5 },
-    { signal: 'money_inbound', weight: 4 },
-    { signal: 'client_referral_named', weight: 3 },
-    { signal: 'prospect_language', weight: 2 },
-  ],
-  vendor: [
+  partner_referral: [{ signal: 'partner_language', weight: 3 }],
+  fraud_risk: [{ signal: 'wire_change', weight: 5 }],
+  compliance: [{ signal: 'regulatory_notice', weight: 5 }],
+  unknown: [],
+  junk: [
+    { signal: 'bulk_markers', weight: 4 },
     { signal: 'selling_language', weight: 4 },
     { signal: 'recruiting_language', weight: 4 },
     { signal: 'money_outbound', weight: 3 },
   ],
-  partner_referral: [{ signal: 'partner_language', weight: 3 }],
-  automated: [{ signal: 'bulk_markers', weight: 4 }],
-  unknown: [],
-  unreadable: [],
 };
 
-/** Counted only for the confidence attached to an unreadable ruling. See CATEGORY_EVIDENCE for why. */
+
+/**
+ * Counted only for the confidence attached to a nothing-readable ruling.
+ *
+ * These no longer have to be kept out of CATEGORY_EVIDENCE. When `unreadable` was its own category, two
+ * paths could select it and could therefore disagree. Now both paths land on `junk` and can only agree —
+ * `unreadableReason` running first means an empty body that happens to contain an unsubscribe link is junk
+ * *with* a reason rather than junk without one, which is strictly more information, not a conflict.
+ */
 const UNREADABLE_SUPPORT: readonly Evidence[] = [
   { signal: 'body_is_negligible', weight: 4 },
   { signal: 'transport_garbage', weight: 4 },
@@ -111,11 +120,10 @@ const CATEGORY_PRIORITY_FLOOR: Record<Category, Priority> = {
   existing_client: 'medium',
   prospect: 'medium',
   partner_referral: 'medium',
-  vendor: 'low',
-  automated: 'low',
   unknown: 'low',
-  unreadable: 'low',
+  junk: 'low',
 };
+
 
 /**
  * SIGNED MODIFIERS on the category floor. Priority is a second, independent sum: the category says what
@@ -141,7 +149,12 @@ interface PriorityModifier {
   suppressedBy?: readonly SignalId[];
 }
 
-const NEVER: readonly Category[] = ['automated', 'unreadable'];
+/**
+ * The one category no modifier may raise. It used to take three entries, and several rows had to name
+ * `vendor` a fourth time on top — collapsing the labels collapsed the exception lists with them, which is
+ * a fair part of what the simpler taxonomy bought.
+ */
+const NEVER: readonly Category[] = ['junk'];
 const SALES_EVIDENCE: readonly SignalId[] = ['selling_language', 'recruiting_language'];
 
 const PRIORITY_MODIFIERS: readonly PriorityModifier[] = [
@@ -149,25 +162,25 @@ const PRIORITY_MODIFIERS: readonly PriorityModifier[] = [
   // week?" has stated no obligation of ours, and a date inside MIME garbage is not a date at all. The
   // modifier deliberately still applies to `unknown` - a stated deadline is a fact about the message, not
   // about who sent it, and reconciliation takes the maximum priority regardless of category confidence.
-  { signal: 'explicit_deadline', points: 2, exceptFor: [...NEVER, 'vendor'] },
+  { signal: 'explicit_deadline', points: 2, exceptFor: NEVER },
   // Money at risk, on an account that is already ours.
-  { signal: 'fee_dispute', points: 2, exceptFor: [...NEVER, 'vendor'] },
+  { signal: 'fee_dispute', points: 2, exceptFor: NEVER },
   { signal: 'attrition', points: 2, exceptFor: NEVER },
   { signal: 'escalation', points: 2, exceptFor: NEVER },
   { signal: 'wire_change', points: 2, exceptFor: NEVER },
   // Money arriving. Both are cancelled by sales evidence, which is the whole point of scoring direction
   // instead of magnitude: a figure inside a pitch cannot buy priority.
-  { signal: 'liquidity_event', points: 2, exceptFor: [...NEVER, 'vendor'], suppressedBy: SALES_EVIDENCE },
+  { signal: 'liquidity_event', points: 2, exceptFor: NEVER, suppressedBy: SALES_EVIDENCE },
   {
     signal: 'money_inbound',
     points: 2,
-    exceptFor: [...NEVER, 'vendor'],
+    exceptFor: NEVER,
     suppressedBy: [...SALES_EVIDENCE, 'money_outbound'],
   },
   // Money leaving. Someone billing the firm is work for operations, not for an advisor.
   { signal: 'money_outbound', points: -1, exceptFor: NEVER },
   // An adjective, worth half a date.
-  { signal: 'time_sensitive_claim', points: 1, exceptFor: [...NEVER, 'vendor'] },
+  { signal: 'time_sensitive_claim', points: 1, exceptFor: NEVER },
   { signal: 'third_party_requester', points: 1, exceptFor: NEVER },
   // Anger is not urgency. It is worth one point from someone who is already a client, because retention is
   // the exposure, and nothing at all from anyone else.
@@ -234,10 +247,12 @@ function priorityFor(category: Category, signals: Signal[]): Priority {
 }
 
 /**
- * Why a message has nothing checkable in it, or null when it is a real message - however vague.
+ * Why a message has nothing checkable in it, or null when it is a real message - however vague. The
+ * caller writes `junk` and records this as the row's `reason`.
  *
- * A merely vague message is NOT unreadable. "Just following up" is real correspondence whose intent cannot
- * be determined, which is `unknown` - a different label with a different next action (D-012). `no-id` is
+ * A merely vague message is NOT this. "Just following up" is real correspondence whose intent cannot be
+ * determined, which is `unknown` - a different label with a different next action (D-012), and the one
+ * label that deliberately did not collapse into `junk`. `no-id` is
  * not returned here either: a missing identifier is a defect in the record rather than in the text, so the
  * loader rules on it (DESIGN §4.1).
  */
@@ -256,8 +271,8 @@ export function unreadableReason(m: InboundMessage, signals: Signal[]): Unreadab
 export function applyRules(m: InboundMessage, signals: Signal[]): RulesVerdict {
   if (unreadableReason(m, signals) !== null) {
     return {
-      category: 'unreadable',
-      priority: CATEGORY_PRIORITY_FLOOR.unreadable,
+      category: 'junk',
+      priority: CATEGORY_PRIORITY_FLOOR.junk,
       confidence: confidenceFor(weightPresent(signals, UNREADABLE_SUPPORT), 0),
     };
   }

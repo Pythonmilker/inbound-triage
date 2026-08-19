@@ -157,7 +157,7 @@ describe('results', () => {
     const drained: TriageResult = {
       ...PENDING,
       status: 'triaged',
-      category: 'vendor',
+      category: 'junk',
       priority: 'low',
       summary: 'A vendor is pitching analytics software.',
       next_action: 'Decline, or route to operations.',
@@ -284,7 +284,7 @@ describe('the retry queue', () => {
     await store.saveResult({
       ...PENDING,
       status: 'triaged',
-      category: 'vendor',
+      category: 'junk',
       priority: 'low',
       source: 'model',
     });

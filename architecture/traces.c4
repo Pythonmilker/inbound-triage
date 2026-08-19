@@ -85,14 +85,16 @@ views {
       '''
     }
     triage.node.engine.observations -> triage.node.engine.rules 'body is negligible · transport garbage'
-    triage.node.engine.rules -> triage.node.engine.reconcile 'unreadable, with the reason' {
+    triage.node.engine.rules -> triage.node.engine.reconcile 'junk, with the reason' {
       notes '''
-        No model call. The row is written as `unreadable` with the specific reason — an empty body, a body
-        below the threshold, or transport garbage — and its status is *finished*, because we did finish:
-        the answer is that there is nothing here.
+        No model call. The row is written as `junk` with the specific reason — an empty body, a body below
+        the threshold, or transport garbage — and its status is *finished*, because we did finish: the
+        answer is that there is nothing here.
 
-        This is also why the label is `unreadable` and not `error`: a reader scanning the grid must not
-        mistake "this message is garbage" for "the app broke".
+        The label is deliberately not `error`: a reader scanning the grid must not mistake "this message is
+        garbage" for "the app broke". It is the same `junk` a newsletter gets, because the operator does the
+        same thing with both — and the `reason` is what separates them, pointing at the intake path when
+        the body arrived damaged.
       '''
     }
     triage.node.engine.reconcile -> triage.node.store 'writes the row'

@@ -117,7 +117,7 @@ views {
       would decide the answer before the reasoning that justifies it.
 
       ### What to read next
-      Any of the three traces, which play step by step: the ordinary path, the unreadable message, and
+      Any of the three traces, which play step by step: the ordinary path, the unreadable body, and
       the failure that queues itself.
     '''
     include *
@@ -135,8 +135,8 @@ views {
   view data of triage.node.store {
     title 'Data — two tables, and the seam'
     description '''
-      **Two tables, not three.** An unreadable message is an ordinary result row carrying the label
-      `unreadable`, so there is no separate holding area for it — which is what removed a whole surface
+      **Two tables, not three.** A message with nothing readable in it is an ordinary result row carrying
+      the label `junk` and a `reason`, so there is no separate holding area for it — which removed a surface
       from the interface. An earlier design parked those messages in their own bucket; folding them into
       the queue as just another tag is what let the grid be a single list.
 

@@ -263,7 +263,7 @@ describe('a run where the model fails on some items', () => {
     for (const id of UNREADABLE_IDS) {
       const row = await rowFor(id);
       expect(row.status, id).toBe('triaged');
-      expect(row.category, id).toBe('unreadable');
+      expect(row.category, id).toBe('junk');
       expect(row.source, id).toBe('rules');
       expect(row.attempts, id).toEqual([]);
       expect(row.summary, id).not.toBeNull();

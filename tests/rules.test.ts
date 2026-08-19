@@ -164,7 +164,7 @@ const CORPUS: readonly Phrasing[] = [
     // still their calendar rather than our exposure.
     body: 'Hi team, we sell portfolio analytics software used by 200+ RIAs. Would love 20 minutes to show you what we do — our introductory rate ends this Friday.',
     from_org: 'Lumen Analytics',
-    category: 'vendor',
+    category: 'junk',
     priority: 'low',
   },
   {
@@ -172,14 +172,14 @@ const CORPUS: readonly Phrasing[] = [
     subject: 'Portfolio analytics',
     body: 'Quick demo?',
     from_org: 'Lumen Analytics',
-    category: 'vendor',
+    category: 'junk',
     priority: 'low',
   },
   {
     why: 'product-led pitch with a trial offer',
     body: 'Our platform cuts reconciliation time for RIAs by half. Free trial if you want to try it.',
     from_org: 'Ledgerly',
-    category: 'vendor',
+    category: 'junk',
     priority: 'low',
   },
   {
@@ -187,14 +187,14 @@ const CORPUS: readonly Phrasing[] = [
     subject: 'Exciting opportunity',
     body: "Hello! I came across your profile and think you'd be a great fit for a senior role with one of my clients. Open to a chat this week?",
     from_org: 'TalentBridge Recruiting',
-    category: 'vendor',
+    category: 'junk',
     priority: 'low',
   },
   {
     why: 'lowercase recruiter, self-described',
     body: "hi — i'm recruiting for a director of operations role and wanted to see if you're open to a conversation.",
     from_org: 'TalentBridge Recruiting',
-    category: 'vendor',
+    category: 'junk',
     priority: 'low',
   },
   {
@@ -225,14 +225,14 @@ const CORPUS: readonly Phrasing[] = [
     subject: 'Your Monday market digest',
     body: 'MARKETS: Equities edged higher... [automated newsletter] To unsubscribe click here.',
     from_org: 'Market Daily',
-    category: 'automated',
+    category: 'junk',
     priority: 'low',
   },
   {
     why: 'list-management boilerplate, contraction',
     body: "You're receiving this because you subscribed to our list. Manage your email preferences or opt out at any time.",
     from_org: 'Market Daily',
-    category: 'automated',
+    category: 'junk',
     priority: 'low',
   },
   {
@@ -240,7 +240,7 @@ const CORPUS: readonly Phrasing[] = [
     subject: 'Weekly digest',
     body: 'View this in your browser.',
     from_org: 'Market Daily',
-    category: 'automated',
+    category: 'junk',
     priority: 'low',
   },
   {
@@ -267,14 +267,14 @@ const CORPUS: readonly Phrasing[] = [
     why: 'a single period',
     body: '.',
     from_org: '',
-    category: 'unreadable',
+    category: 'junk',
     priority: 'low',
   },
   {
     why: 'an empty body',
     body: '',
     from_org: '',
-    category: 'unreadable',
+    category: 'junk',
     priority: 'low',
   },
   {
@@ -282,7 +282,7 @@ const CORPUS: readonly Phrasing[] = [
     subject: 'RE: RE: FWD:',
     body: '=?utf-8?B?RmFrZQ== --- forwarded message truncated ---',
     from_org: '(unknown)',
-    category: 'unreadable',
+    category: 'junk',
     priority: 'low',
   },
   // The two categories the never-firing guards made reachable (D-018). Neither appears in the supplied
@@ -613,7 +613,7 @@ describe('the planted edge cases in the supplied queue', () => {
     const signals = observe(m);
 
     expect(unreadableReason(m, signals)).toBe('below-threshold');
-    expect(applyRules(m, signals).category).toBe('unreadable');
+    expect(applyRules(m, signals).category).toBe('junk');
   });
 
   it('rules inb-011 garbled, on the transport damage the loader preserved', () => {
@@ -622,7 +622,7 @@ describe('the planted edge cases in the supplied queue', () => {
 
     expect(reading(signals, 'transport_garbage').present).toBe(true);
     expect(unreadableReason(m, signals)).toBe('garbled');
-    expect(applyRules(m, signals).category).toBe('unreadable');
+    expect(applyRules(m, signals).category).toBe('junk');
   });
 
   it('leaves inb-009 as unknown at zero rather than guessing', () => {
@@ -631,9 +631,15 @@ describe('the planted edge cases in the supplied queue', () => {
     expect(applyRules(m, observe(m))).toEqual({ category: 'unknown', priority: 'low', confidence: 0 });
   });
 
-  it('rules exactly two of the thirteen unreadable', () => {
-    const unreadable = loaded.messages.filter((m) => applyRules(m, observe(m)).category === 'unreadable');
+  it('finds nothing readable in exactly two of the thirteen', () => {
+    // Keyed on the REASON, not the category. Since `vendor`, `automated` and `unreadable` collapsed into
+    // `junk`, the category no longer distinguishes "we read it and nobody needs it" from "we could not read
+    // it" - the reason does, and that is the whole argument for keeping the field when the label went.
+    const nothingReadable = loaded.messages.filter((m) => unreadableReason(m, observe(m)) !== null);
+    const junk = loaded.messages.filter((m) => applyRules(m, observe(m)).category === 'junk');
 
-    expect(unreadable.map((m) => m.id)).toEqual(['inb-010', 'inb-011']);
+    expect(nothingReadable.map((m) => m.id)).toEqual(['inb-010', 'inb-011']);
+    // And junk is the wider bucket: two unreadable plus the pitch, the recruiter and the digest.
+    expect(junk.map((m) => m.id)).toEqual(['inb-003', 'inb-004', 'inb-008', 'inb-010', 'inb-011']);
   });
 });
