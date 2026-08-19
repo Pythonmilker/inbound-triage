@@ -44,11 +44,19 @@ export function Row({
   expanded,
   onToggle,
   columns,
+  ranYet,
 }: {
   row: QueueRow;
   expanded: boolean;
   onToggle: (messageId: string) => void;
   columns: number;
+  /**
+   * Whether anything in this queue has been triaged at all. A row with no result means two entirely
+   * different things either side of that: before a run it is simply waiting, and after one it is a message
+   * the run dropped without recording a verdict — which is a defect and has to say so. Without this flag
+   * the resting state of a fresh queue reads as thirteen internal errors.
+   */
+  ranYet: boolean;
 }) {
   const { message, result } = row;
   const detailId = `detail-${message.id}`;
@@ -87,8 +95,13 @@ export function Row({
             <span className={`chip cat-${verdict.category}`}>
               {label(CATEGORY_LABEL, verdict.category)}
             </span>
-          ) : (
+          ) : ranYet ? (
             <span className="chip tone-pending">not triaged</span>
+          ) : (
+            // Neutral, not the failure colour. `tone-pending` is right for a row whose model call failed
+            // and wrong for one that has not been attempted: thirteen red chips on a queue nobody has run
+            // yet announce thirteen failures that have not happened.
+            <span className="chip tone-waiting">awaiting</span>
           )}
         </td>
         <td className="col-tag">
@@ -102,7 +115,7 @@ export function Row({
             </span>
           )}
         </td>
-        <td className="col-summary">{summaryCell(result, verdict)}</td>
+        <td className="col-summary">{summaryCell(result, verdict, ranYet)}</td>
         <td className="col-source">
           {verdict !== null && verdict.source !== null ? (
             <span className="chip chip-source">{verdict.source}</span>
@@ -144,8 +157,9 @@ export function Row({
 
               {result === null && (
                 <p className="detail-line">
-                  No result row exists for this message. The run recorded an internal error for it rather
-                  than a verdict — see the run summary.
+                  {ranYet
+                    ? 'No result row exists for this message. The run recorded an internal error for it rather than a verdict — see the run summary.'
+                    : 'Not triaged yet. Press “Run triage” to send this message for a verdict — one model call, alongside the deterministic read.'}
                 </p>
               )}
             </div>
@@ -249,8 +263,12 @@ function Unblock({ attempts }: { attempts: readonly Attempt[] }) {
   );
 }
 
-function summaryCell(result: TriageResult | null, verdict: TriageResult | null) {
-  if (result === null) return <span className="no-value">no result row</span>;
+function summaryCell(result: TriageResult | null, verdict: TriageResult | null, ranYet: boolean) {
+  // "no result row" is the right words for a message a run dropped and the wrong words for one that has
+  // simply not been run. Same null, opposite meanings.
+  if (result === null) {
+    return <span className="no-value">{ranYet ? 'no result row' : 'awaiting triage'}</span>;
+  }
   if (verdict === null) return <span className="failure-line">{attemptSummary(result.attempts)}</span>;
   if (verdict.summary === null) return <span className="no-value">no summary</span>;
   return verdict.summary;

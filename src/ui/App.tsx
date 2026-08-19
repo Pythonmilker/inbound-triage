@@ -110,7 +110,14 @@ export function App() {
   const counts = useMemo(() => tally(rows), [rows]);
   const visible = useMemo(() => rows.filter((row) => matches(row, filter)), [rows, filter]);
 
-  const showQueue = rows.length > 0 && (results.length > 0 || summary !== null);
+  // Visible as soon as messages load, with every row uncategorised. A queue you cannot see until after
+  // it has been processed hides the state the tool exists to change: a reader has to be able to look at
+  // thirteen untriaged messages, press one button, and watch them get labelled. Rows already carry a null
+  // result (see `rows` above and Row.tsx), so this is a gate that was costing the "before" state for
+  // nothing.
+  const showQueue = rows.length > 0;
+  /** Has anything in this queue been triaged, in this session or a previous one? */
+  const ranYet = results.length > 0 || summary !== null;
 
   return (
     <div className="app">
@@ -151,7 +158,7 @@ export function App() {
             onRetry={onRetry}
           />
           <FilterBar counts={counts} active={filter} onSelect={setFilter} />
-          <Grid rows={visible} expanded={expanded} onToggle={onToggle} />
+          <Grid rows={visible} expanded={expanded} onToggle={onToggle} ranYet={ranYet} />
         </>
       ) : (
         <>

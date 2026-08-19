@@ -342,3 +342,61 @@ describe('close', () => {
     store = createSqliteStore(dbPath);
   });
 });
+
+describe('a database created under an older taxonomy', () => {
+  /**
+   * The bug this covers was found by running the app, not by the suite — and the suite could not have found
+   * it, because every other test here starts from a fresh file. `CREATE TABLE IF NOT EXISTS` leaves an
+   * existing database's CHECK constraints exactly as they were written, so after a category was renamed
+   * every write of the new label failed with `CHECK constraint failed` on any machine that had run the app
+   * once. A reviewer's second run would have been the first time anyone saw it.
+   */
+  it('is rebuilt rather than left enforcing an enum that no longer exists', async () => {
+    const stalePath = join(dir, 'stale.db');
+    const stale = new DatabaseSync(stalePath);
+    stale.exec(`
+      CREATE TABLE messages (
+        id TEXT PRIMARY KEY, received_at TEXT NOT NULL, channel TEXT NOT NULL,
+        from_name TEXT NOT NULL, from_org TEXT NOT NULL, subject TEXT NOT NULL, body TEXT NOT NULL
+      ) STRICT;
+      CREATE TABLE triage_results (
+        message_id TEXT PRIMARY KEY,
+        category TEXT CHECK (category IS NULL OR category IN ('prospect', 'noise', 'unreadable'))
+      ) STRICT;
+      PRAGMA user_version = 12345;
+    `);
+    stale.close();
+
+    const reopened = createSqliteStore(stalePath);
+    const message: InboundMessage = {
+      id: 'inb-x',
+      received_at: '2026-07-20T09:00:00-04:00',
+      channel: 'email',
+      from_name: 'A',
+      from_org: '(individual)',
+      subject: 's',
+      body: 'b',
+    };
+    await reopened.saveMessages([message]);
+
+    const row: TriageResult = {
+      message_id: 'inb-x',
+      content_hash: contentHash(message),
+      status: 'triaged',
+      category: 'junk',
+      priority: 'low',
+      summary: 'machine-sent',
+      next_action: 'delete',
+      confidence: 0.83,
+      source: 'rules',
+      reason: null,
+      reconciliation_note: null,
+      attempts: [],
+      updated_at: '2026-08-19T09:00:00.000Z',
+    };
+    // `junk` is not in the stale constraint. Before the rebuild this rejected and the row was lost.
+    await expect(reopened.saveResult(row)).resolves.toBeUndefined();
+    expect((await reopened.listResults()).map((r) => r.category)).toEqual(['junk']);
+    await reopened.close();
+  });
+});

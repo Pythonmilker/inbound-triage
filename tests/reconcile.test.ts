@@ -93,7 +93,9 @@ describe('priority', () => {
 
     expect(result.priority).toBe('high');
     expect(result.source).toBe('model');
-    expect(result.note).toBeNull();
+    // The verdict is entirely the model's, and the note says only that the floor read the category
+    // differently — never that anything moved, because nothing did.
+    expect(result.note).not.toContain('raised');
   });
 
   it('is the maximum of the two on every combination', () => {
@@ -139,7 +141,9 @@ describe('category', () => {
 
     expect(result.category).toBe('prospect');
     expect(result.source).toBe('model');
-    expect(result.note).toBeNull();
+    // No self-identification was read, which is the point of this test. The note that IS present records
+    // the plain category disagreement and must not claim the sender said anything about being a client.
+    expect(result.note).not.toContain('states they are an existing client');
   });
 
   it('accepts a bare signal id as a match', () => {
@@ -200,15 +204,45 @@ describe('source and note', () => {
     }
   });
 
-  it('carries a note exactly when something moved', () => {
+  it('carries a note whenever the two layers did not simply agree', () => {
     for (const each of grid()) {
       const result = reconcile(each);
 
-      // A note on an untouched row is noise; a silent override is worse. The row has to be able to say why
-      // it does not match what the model returned.
-      expect(result.note !== null).toBe(result.source !== 'model');
+      // A note on an untouched row is noise; a silent override is worse. This assertion used to read
+      // `note !== null` iff `source !== 'model'`, which quietly permitted the one case that matters most:
+      // the model's category winning over a floor that read the message differently produced no note at
+      // all. On a real run the floor called a vendor pitch `junk` at 0.83, the model called it a prospect
+      // at 0.80 and won, and the row came out looking unanimous. The model was wrong.
+      //
+      // So the rule is now about DISAGREEMENT rather than about who supplied the verdict.
+      const disagreed = each.rules.category !== each.model.category && each.rules.confidence > 0;
+      const somethingMoved = result.source !== 'model';
+
+      expect(result.note !== null).toBe(somethingMoved || disagreed);
       if (result.note !== null) expect(result.note.endsWith('.')).toBe(true);
     }
+  });
+
+  it('records a category disagreement the model won, without changing who won', () => {
+    // Transparency is not the same as deference. The model still supplies the verdict; the row just stops
+    // pretending the deterministic layer agreed with it.
+    const result = reconcile({
+      rules: { category: 'junk', priority: 'low', confidence: 0.83, signals: [] },
+      model: {
+        category: 'prospect',
+        priority: 'low',
+        confidence: 0.8,
+        summary: 'Request for a 20-minute demo of portfolio analytics software',
+        evidence: 'we sell portfolio analytics software',
+        next_action: 'Decline or forward to operations',
+      },
+    });
+
+    expect(result.category).toBe('prospect');
+    expect(result.source).toBe('model');
+    expect(result.note).toContain('disagreed on the category');
+    expect(result.note).toContain('junk');
+    expect(result.note).toContain('0.83');
   });
 
   it('says so when the rule floor happened to agree with the model it replaced', () => {

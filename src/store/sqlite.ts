@@ -34,7 +34,13 @@ const PENDING_RETRY: TriageStatus = 'pending_retry';
 
 /**
  * The unions repeated as record keys rather than as arrays: adding a member in types.ts without adding it
- * here is a compile error, so the CHECK constraints below cannot drift away from the taxonomy.
+ * here is a compile error, so the CHECK constraints below cannot drift away from the taxonomy *in source*.
+ *
+ * That is not the same as not drifting on disk, and the difference was a real bug. `CREATE TABLE IF NOT
+ * EXISTS` leaves an existing file's constraints exactly as they were written, so a database created before
+ * a taxonomy change keeps enforcing the old enum forever. Renaming a category made every write of the new
+ * label fail with `CHECK constraint failed` — invisible to the whole test suite, because each test starts
+ * from a fresh database, and immediate for anyone who had run the app once. See `applySchema` below.
  */
 const STATUSES: Record<TriageStatus, true> = { triaged: true, pending_retry: true };
 const SOURCES: Record<VerdictSource, true> = { model: true, rules: true, reconciled: true };
@@ -175,6 +181,57 @@ function toResult(row: Record<string, SQLOutputValue>): TriageResult {
 }
 
 /**
+ * A fingerprint of the schema text, kept in `PRAGMA user_version`.
+ *
+ * 31 bits, because `user_version` is a signed 32-bit integer. It only has to CHANGE when the DDL changes,
+ * never to be cryptographically anything, so a cheap string hash is the right tool.
+ */
+function schemaFingerprint(ddl: string): number {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < ddl.length; i += 1) {
+    hash ^= ddl.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return hash & 0x7fffffff;
+}
+
+const SCHEMA_VERSION = schemaFingerprint(SCHEMA);
+
+/**
+ * Create the schema, and rebuild it when the DDL has changed since this file was written.
+ *
+ * The tables are a CACHE. Every row in them is derived from `raw/inbound.json` plus a model call, so a
+ * rebuild costs one re-run and loses nothing that cannot be regenerated — which is what makes dropping
+ * them the right move rather than a destructive one. The alternative, telling the operator to go and delete
+ * a file by hand, makes a person do work the program can do correctly.
+ *
+ * Deliberately NOT a numbered migration ladder. A hand-maintained version number is one more thing to
+ * forget to bump, and forgetting is exactly the failure this exists to prevent: the enum drifted on disk
+ * precisely because nothing was watching the DDL. Hashing the DDL means the check cannot be forgotten,
+ * because the thing being checked IS the thing that changed.
+ */
+function applySchema(db: DatabaseSync): void {
+  const stored = db.prepare('PRAGMA user_version').get() as { user_version?: number } | undefined;
+  const found = typeof stored?.user_version === 'number' ? stored.user_version : 0;
+
+  // A fresh file reports 0 and has no tables; there is nothing to drop and nothing to warn about.
+  const existing = db
+    .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('messages', 'triage_results')")
+    .all();
+
+  if (existing.length > 0 && found !== SCHEMA_VERSION) {
+    console.warn(
+      `[store] schema changed since this database was created (${found} -> ${SCHEMA_VERSION}); ` +
+        'rebuilding messages and triage_results. Stored verdicts are derived data — re-run triage to refill them.',
+    );
+    db.exec('DROP TABLE IF EXISTS triage_results; DROP TABLE IF EXISTS messages;');
+  }
+
+  db.exec(SCHEMA);
+  db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
+}
+
+/**
  * `dbPath` accepts `':memory:'`, which tests use. WAL is a no-op on an in-memory database and that is
  * harmless: there is no file to recover.
  */
@@ -183,7 +240,7 @@ export function createSqliteStore(dbPath: string): Store {
 
   const db = new DatabaseSync(dbPath);
   db.exec('PRAGMA journal_mode = WAL');
-  db.exec(SCHEMA);
+  applySchema(db);
 
   const insertMessage = db.prepare(`
     INSERT INTO messages (id, received_at, channel, from_name, from_org, subject, body)

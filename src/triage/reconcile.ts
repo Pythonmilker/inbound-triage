@@ -41,7 +41,11 @@ export interface ReconciledVerdict {
   priority: Priority;
   confidence: number;
   source: VerdictSource;
-  /** Non-null exactly when `source !== 'model'`. Written for a person scanning a queue, not for a log. */
+  /**
+   * Non-null whenever anything about this verdict needs explaining — which includes a category
+   * disagreement the MODEL won, not only the ones the rules won. Written for a person scanning a queue,
+   * not for a log.
+   */
   note: string | null;
 }
 
@@ -76,6 +80,23 @@ export function reconcile({ rules, model }: ReconcileInput): ReconciledVerdict {
       category === model.category
         ? `${scored}, so the rule floor's ${category} stands — it happened to agree`
         : `${scored}, so the rule floor's ${category} stands instead of the model's ${model.category}`,
+    );
+  } else if (rules.category !== model.category && rules.confidence > 0) {
+    /*
+     * The model's category won over a rule floor that read the message differently. This used to produce
+     * NO note at all, which made it the one path through this function that resolved a disagreement in
+     * silence — and a silent override is the failure mode the whole design is built to avoid.
+     *
+     * It is not hypothetical. On a real run against the supplied queue the floor read a vendor pitch as
+     * `junk` at 0.83 from explicit selling language, the model called it a `prospect` at 0.80, the model
+     * won because 0.80 clears the threshold, and the row came out looking unanimous. The model was wrong.
+     *
+     * Recording it does not change who wins — whether a more-confident floor SHOULD win is a separate
+     * decision. It changes whether anyone can tell.
+     */
+    clauses.push(
+      `model's ${model.category} at ${model.confidence.toFixed(2)} kept over the rule floor's ` +
+        `${rules.category} at ${rules.confidence.toFixed(2)} — the two layers disagreed on the category`,
     );
   }
 

@@ -367,6 +367,14 @@ button:disabled {
   --chip-line: var(--grey);
 }
 
+/* Waiting is not failing. Dashed to read as provisional, neutral so it competes with nothing. */
+.tone-waiting {
+  --chip-fg: var(--text-faint);
+  --chip-bg: transparent;
+  --chip-line: var(--line);
+  border-style: dashed;
+}
+
 .tone-pending {
   --chip-fg: var(--fail);
   --chip-bg: var(--fail-bg);

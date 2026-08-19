@@ -42,14 +42,16 @@ export function SummaryBar({
   const triaged =
     summary?.counts.triaged ?? rows.filter((row) => row.result?.status === 'triaged').length;
   const pending = summary?.counts.pending_retry ?? pendingRows.length;
+  /** Rows with no verdict of any kind: loaded, waiting, never sent anywhere. */
+  const waiting = rows.filter((row) => row.result === null).length;
   const parseNote = summary?.parseNote ?? loaderNote;
   const tally = summary === null ? null : failureTally(summary.failures);
 
   return (
     <section className="summary" aria-live="polite">
       <div className="summary-body">
-        <p className="summary-line">{headline(triaged, pending, pendingRows)}</p>
-        <p className="summary-meta">{summary === null ? STORED_NOTE : meta(summary)}</p>
+        <p className="summary-line">{headline(triaged, pending, waiting, pendingRows)}</p>
+        <p className="summary-meta">{summary === null ? storedNote(triaged) : meta(summary)}</p>
 
         {parseNote !== null && <p className="summary-note">Loader: {parseNote}</p>}
 
@@ -87,16 +89,34 @@ export function SummaryBar({
   );
 }
 
-const STORED_NOTE = 'Stored results — no run yet in this session.';
+/**
+ * With no run in this session there are two different situations and they must not share a sentence:
+ * verdicts already in the store from an earlier session, or a queue that has never been triaged at all.
+ */
+function storedNote(triaged: number): string {
+  return triaged === 0
+    ? 'Nothing has been triaged yet. One model call per message will be made when you run it.'
+    : 'Stored results — no run yet in this session.';
+}
 
-function headline(triaged: number, pending: number, pendingRows: readonly TriageResult[]): string {
+function headline(
+  triaged: number,
+  pending: number,
+  waiting: number,
+  pendingRows: readonly TriageResult[],
+): string {
+  // A fresh queue is not a run that did nothing. Saying "the run touched no rows" to someone who has not
+  // pressed the button yet reports a failure that has not happened.
   if (triaged === 0 && pending === 0) {
-    return 'Nothing to do — the run touched no rows.';
+    return waiting > 0
+      ? `${waiting} waiting · none triaged yet — press “Run triage”`
+      : 'Nothing to do — the run touched no rows.';
   }
+  const rest = waiting > 0 ? ` · ${waiting} still waiting` : '';
   if (pending === 0) {
-    return `${triaged} triaged · nothing failed`;
+    return `${triaged} triaged · nothing failed${rest}`;
   }
-  return `${triaged} triaged · ${pending} could not be triaged — ${worstAttempts(pendingRows)}`;
+  return `${triaged} triaged · ${pending} could not be triaged — ${worstAttempts(pendingRows)}${rest}`;
 }
 
 /**

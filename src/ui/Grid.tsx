@@ -14,10 +14,13 @@ export function Grid({
   rows,
   expanded,
   onToggle,
+  ranYet,
 }: {
   rows: readonly QueueRow[];
   expanded: ReadonlySet<string>;
   onToggle: (messageId: string) => void;
+  /** Passed through to Row: a missing result is "waiting" before a run and a defect after one. */
+  ranYet: boolean;
 }) {
   if (rows.length === 0) {
     return <p className="grid-empty">Nothing in the queue matches this filter.</p>;
@@ -61,6 +64,7 @@ export function Grid({
               row={row}
               expanded={expanded.has(row.message.id)}
               onToggle={onToggle}
+          ranYet={ranYet}
               columns={GRID_COLUMNS}
             />
           ))}
