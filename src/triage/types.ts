@@ -123,6 +123,17 @@ export const PRIORITY_IDS = PRIORITIES.map((p) => p.id) as readonly Priority[];
 /** Ranked worst-to-best so reconciliation can take a maximum without a lookup table. */
 export const PRIORITY_RANK: Record<Priority, number> = { low: 0, medium: 1, high: 2 };
 
+/**
+ * The weight at which the floor's evidence is CHARACTERISTIC rather than merely suggestive, and therefore
+ * outranks the model's category read (reconcile.ts).
+ *
+ * Four, because that is where the weight scale in rules.ts stops describing things anyone might say. A 1 or
+ * a 2 is a question a competitor could ask; a 3 is solid but shared; a 4 is an idiom that would be odd from
+ * anyone other than the category it belongs to — "we sell", a recruiter's opener, an unsubscribe link — and
+ * a 5 is a fact the sender volunteered about themselves.
+ */
+export const STRONG_EVIDENCE = 4;
+
 /** One inbound message, after loading. Fields may be empty strings — that is the source data's shape. */
 export interface InboundMessage {
   id: string;
@@ -186,6 +197,13 @@ export interface RulesVerdict {
   category: Category;
   priority: Priority;
   confidence: number;
+  /**
+   * Summed weight of the evidence behind `category`. Reported separately from `confidence` because they
+   * answer different questions: confidence is how sure the floor is *relative to the runner-up*, weight is
+   * how characteristic the evidence itself was. Reconciliation needs the second one — see STRONG_EVIDENCE
+   * in reconcile.ts.
+   */
+  evidenceWeight: number;
 }
 
 /** One attempt at a model call, kept so a failure is diagnosable rather than merely visible. */

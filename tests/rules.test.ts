@@ -423,12 +423,12 @@ describe('no signals means unknown, not the nearest neighbour', () => {
     // sender named no organisation says nothing about what they want. Naming one silences it, which is the
     // case where genuinely nothing fires.
     expect(observe(m).filter((s) => s.present).map((s) => s.id)).toEqual(['org_is_sentinel']);
-    expect(verdictFor(m)).toEqual({ category: 'unknown', priority: 'low', confidence: 0 });
+    expect(verdictFor(m)).toEqual({ category: 'unknown', priority: 'low', confidence: 0, evidenceWeight: 0 });
 
     const named: InboundMessage = { ...m, from_org: 'Ridgeline Co' };
 
     expect(observe(named).filter((s) => s.present)).toEqual([]);
-    expect(verdictFor(named)).toEqual({ category: 'unknown', priority: 'low', confidence: 0 });
+    expect(verdictFor(named)).toEqual({ category: 'unknown', priority: 'low', confidence: 0, evidenceWeight: 0 });
   });
 
   it('scores confidence on evidential weight and on the margin over the runner-up', () => {
@@ -628,7 +628,7 @@ describe('the planted edge cases in the supplied queue', () => {
   it('leaves inb-009 as unknown at zero rather than guessing', () => {
     const m = supplied('inb-009');
 
-    expect(applyRules(m, observe(m))).toEqual({ category: 'unknown', priority: 'low', confidence: 0 });
+    expect(applyRules(m, observe(m))).toEqual({ category: 'unknown', priority: 'low', confidence: 0, evidenceWeight: 0 });
   });
 
   it('finds nothing readable in exactly two of the thirteen', () => {

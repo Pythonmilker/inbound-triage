@@ -276,10 +276,14 @@ export function unreadableReason(m: InboundMessage, signals: Signal[]): Unreadab
 
 export function applyRules(m: InboundMessage, signals: Signal[]): RulesVerdict {
   if (unreadableReason(m, signals) !== null) {
+    const support = weightPresent(signals, UNREADABLE_SUPPORT);
     return {
       category: 'junk',
       priority: CATEGORY_PRIORITY_FLOOR.junk,
-      confidence: confidenceFor(weightPresent(signals, UNREADABLE_SUPPORT), 0),
+      confidence: confidenceFor(support, 0),
+      // A body with nothing readable in it is measured, not inferred, so its evidence is as strong as
+      // evidence gets here — reconciliation never sees it anyway, because no model call was made.
+      evidenceWeight: support,
     };
   }
 
@@ -307,5 +311,6 @@ export function applyRules(m: InboundMessage, signals: Signal[]): RulesVerdict {
     category: best,
     priority: priorityFor(best, signals),
     confidence: confidenceFor(bestWeight, runnerUp),
+    evidenceWeight: bestWeight,
   };
 }

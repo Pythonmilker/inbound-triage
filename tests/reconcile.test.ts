@@ -31,6 +31,10 @@ function input(
       category: 'existing_client',
       priority: rulesPriority,
       confidence: RULES_CONFIDENCE,
+      // Below STRONG_EVIDENCE on purpose. These fixtures test the self-identification and
+      // below-threshold paths; giving them characteristic-strength evidence would route every one of them
+      // into the strong-evidence branch instead and quietly stop testing anything they were written for.
+      evidenceWeight: 2,
       signals,
     },
     model: {
@@ -227,7 +231,7 @@ describe('source and note', () => {
     // Transparency is not the same as deference. The model still supplies the verdict; the row just stops
     // pretending the deterministic layer agreed with it.
     const result = reconcile({
-      rules: { category: 'junk', priority: 'low', confidence: 0.83, signals: [] },
+      rules: { category: 'junk', priority: 'low', confidence: 0.83, evidenceWeight: 2, signals: [] },
       model: {
         category: 'prospect',
         priority: 'low',
@@ -247,7 +251,7 @@ describe('source and note', () => {
 
   it('says so when the rule floor happened to agree with the model it replaced', () => {
     const agreeing: ReconcileInput = {
-      rules: { category: 'prospect', priority: 'medium', confidence: RULES_CONFIDENCE },
+      rules: { category: 'prospect', priority: 'medium', confidence: RULES_CONFIDENCE, evidenceWeight: 2 },
       model: { ...input('medium', 'medium', 0.3).model, category: 'prospect' },
     };
 
@@ -277,5 +281,72 @@ describe('no model call', () => {
     const second = grid().map(reconcile);
 
     expect(second).toEqual(first);
+  });
+});
+
+describe('characteristic evidence keeps the category', () => {
+  /**
+   * The case that produced this rule, from the first live run against a real provider.
+   *
+   * The floor read a vendor pitch as `junk` on `selling_language` (weight 4), the model called the sender a
+   * `prospect` at 0.80, and 0.80 clears the confidence threshold — so the model's category won and the row
+   * came out looking unanimous. The model was wrong.
+   *
+   * What makes the override defensible rather than a regex veto is that the model ALREADY HAD the evidence:
+   * the observation block quotes every matched phrase into the prompt, so it was handed `selling_language
+   * present "we sell"` and still read a vendor as a prospect. That is not an information deficit a better
+   * prompt could close, which is why authority rather than persuasion is the right instrument.
+   *
+   * The rule is deliberately keyed on evidence WEIGHT, not on which layer scored higher confidence. The two
+   * confidences here are 0.03 apart and derived differently; treating that gap as meaningful would be the
+   * weaker justification for the same outcome.
+   */
+  const vendorPitch = (modelConfidence: number, weight: number): ReconcileInput => ({
+    rules: {
+      category: 'junk',
+      priority: 'low',
+      confidence: 0.83,
+      evidenceWeight: weight,
+      signals: ['selling_language'],
+    },
+    model: {
+      summary: 'Request for a 20-minute demo of portfolio analytics software',
+      evidence: '"we sell portfolio analytics software"',
+      category: 'prospect',
+      priority: 'low',
+      next_action: 'Reply to schedule the demo',
+      confidence: modelConfidence,
+    },
+  });
+
+  it('overrides a confident model when the floor matched a characteristic phrase', () => {
+    const result = reconcile(vendorPitch(0.8, 4));
+
+    expect(result.category).toBe('junk');
+    expect(result.source).toBe('rules');
+    expect(result.note).toContain("over the model's prospect");
+    expect(result.note).toContain('weight 4');
+  });
+
+  it('leaves the model alone when the floor only had suggestive evidence', () => {
+    // Weight 3 is solid but shared, and shared evidence is exactly where a model's reading of the whole
+    // message should beat a phrase match. The disagreement is still recorded.
+    const result = reconcile(vendorPitch(0.8, 3));
+
+    expect(result.category).toBe('prospect');
+    expect(result.source).toBe('model');
+    expect(result.note).toContain('disagreed on the category');
+  });
+
+  it('does not claim a disagreement when the two layers happened to agree', () => {
+    const agreed: ReconcileInput = {
+      ...vendorPitch(0.8, 4),
+      model: { ...vendorPitch(0.8, 4).model, category: 'junk' },
+    };
+    const result = reconcile(agreed);
+
+    expect(result.category).toBe('junk');
+    expect(result.note).toContain("which the model's read agreed with");
+    expect(result.note).not.toContain('over the model');
   });
 });

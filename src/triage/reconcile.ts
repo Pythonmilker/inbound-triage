@@ -14,7 +14,7 @@
  */
 
 import { CONFIDENCE_THRESHOLD } from './schema.js';
-import { PRIORITY_RANK } from './types.js';
+import { PRIORITY_RANK, STRONG_EVIDENCE } from './types.js';
 import type { Category, ModelVerdict, Priority, RulesVerdict, VerdictSource } from './types.js';
 
 /**
@@ -53,7 +53,23 @@ export function reconcile({ rules, model }: ReconcileInput): ReconciledVerdict {
   const matched = matchedSignalIds(rules.signals);
   const selfIdentified = matched.includes(SELF_IDENTIFIED_CLIENT);
   const belowThreshold = model.confidence < CONFIDENCE_THRESHOLD;
-  const categoryFromRules = selfIdentified || belowThreshold;
+  /*
+   * The floor's category also stands when its evidence is CHARACTERISTIC of that category — weight 4 or
+   * more, meaning at least one phrase that would be odd coming from anything else.
+   *
+   * Deliberately not "whichever layer scored higher confidence". On the run that prompted this the floor
+   * held `junk` at 0.83 and the model `prospect` at 0.80, and comparing those two numbers is the weaker
+   * justification: they are derived differently and being 0.03 apart means nothing. The floor is right
+   * there because the message literally contains "we sell", not because of an arithmetic near-tie.
+   *
+   * What makes this defensible rather than a regex veto: the model already HAD that evidence. The
+   * observation block quotes every matched phrase into the prompt, and the model still read a vendor as a
+   * prospect — so this is not an information deficit a better prompt could close. The cost is that a
+   * false positive at weight 4 now carries category authority, which is why the note always records the
+   * disagreement and why the eval has to report floor-versus-model agreement.
+   */
+  const strongEvidence = rules.evidenceWeight >= STRONG_EVIDENCE;
+  const categoryFromRules = selfIdentified || belowThreshold || strongEvidence;
 
   const category = categoryFromRules ? rules.category : model.category;
 
@@ -80,6 +96,13 @@ export function reconcile({ rules, model }: ReconcileInput): ReconciledVerdict {
       category === model.category
         ? `${scored}, so the rule floor's ${category} stands — it happened to agree`
         : `${scored}, so the rule floor's ${category} stands instead of the model's ${model.category}`,
+    );
+  } else if (strongEvidence) {
+    const weighed = `the rule floor matched evidence of weight ${rules.evidenceWeight} for ${rules.category}`;
+    clauses.push(
+      category === model.category
+        ? `${weighed}, which the model's read agreed with`
+        : `category set to ${rules.category} over the model's ${model.category}: ${weighed}, which is characteristic of that category rather than merely suggestive`,
     );
   } else if (rules.category !== model.category && rules.confidence > 0) {
     /*
