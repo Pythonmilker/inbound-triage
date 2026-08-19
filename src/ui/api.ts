@@ -7,7 +7,7 @@
  *
  * The three routes used, out of the five `src/server/handlers.ts` serves:
  *
- *   GET  /api/results      -> { messages, parseNote, results, pending }
+ *   GET  /api/results      -> { messages, parseNote, results }
  *   POST /api/triage/run   -> RunSummary   (the engine's triageAll)
  *   POST /api/triage/retry -> RunSummary   (the engine's retryPending)
  *

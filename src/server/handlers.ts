@@ -67,8 +67,6 @@ export interface MessagesResponse {
 
 export interface QueueSnapshot extends MessagesResponse {
   results: TriageResult[];
-  /** Rows waiting on work we could not do yet. The count the summary bar and the filter chip show. */
-  pending: number;
 }
 
 export interface Health {
@@ -181,8 +179,11 @@ function engineFor(store: Store, env: Record<string, string>, paths: Paths): Tri
 async function snapshot(store: Store, inboundPath: string): Promise<QueueSnapshot> {
   const { messages, parseNote } = loadInbound(inboundPath);
   const results = await store.listResults();
-  const pending = await store.listPendingRetry();
-  return { messages, parseNote, results, pending: pending.length };
+  // No pending count here on purpose. It used to ship one, computed by a second store query on every read
+  // of this route, and nothing consumed it: the client's decoder never declared the field and the summary
+  // bar derives the count from the rows it already has. `/api/health` reports pending for an operator, which
+  // is a different question asked by a different caller.
+  return { messages, parseNote, results };
 }
 
 async function health(store: Store, env: Record<string, string>, paths: Paths): Promise<Health> {

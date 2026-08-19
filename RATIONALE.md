@@ -25,14 +25,14 @@ the [README](README.md).
 > Why you chose these categories and priority definitions, and how your data model would hold up if the
 > taxonomy doubled.
 
-_I chose these categories from the perspective of the client's use case. The triage is meant to capture leads, and quickly understand the triage labeling. I chose prospect, existing_client, compliance, fraud_risk, unknown and junk. prospect is new leads, existing_client is existing leads, compliance is for internal communications/legal/procedural needs for the company itself, fraud_risk are patterns flagged as malicious, unknown is when it doesn't fit cleanly into a single category, and junk is a catchall for spam/adverts/notifications/etc. If the taxonomy doubles, it would create more category or priority rows. The llm would pick up the distinction, however the deterministic regex system would need to be trained in the new categories. Which isn't a deal-breaker. Custom labels would be read by the llm and sorted accurately most of the time, just not with the guard of the regex rules._
+_I chose these categories from the perspective of the client's use case. The triage is meant to capture leads, and quickly understand the triage labeling. I chose prospect, existing_client, compliance, fraud_risk, unknown and junk. prospect is new leads, existing_client is existing leads, compliance is legal/regulatory correspondence, fraud_risk are patterns flagged as malicious, unknown is when it doesn't fit cleanly into a single category, and junk is a catchall for spam/adverts/notifications/etc. Priorities are simply high, medium and low, prospect and existing client always get at least a medium priority. I chose these priorities to keep the UX simple and easily understood. If the taxonomy doubles, it would create more category or priority rows. The llm would pick up the distinction, however the deterministic regex system would need to be trained in the new categories. Which isn't a deal-breaker. Custom labels would be read by the llm and sorted accurately most of the time, just not with the guard of the regex rules._
 
 ## b. Reliable structure
 
 > How you got consistent structured output from the LLM, and what your code does when the model returns
 > something malformed. (Point to the relevant code.)
 
-_We specifically use models with the structured output capability through openrouter, (see src/llm/client.ts) and then apply a strict JSON schema so we get the appropriate output. (see src/triage/schema.ts) Then of course it's verified in code, (see validate.ts) if it doesn't verify cleanly, it gets rejected, and walks down the model chain we have set up for openrouter, going to the next available model (see retry.ts). A malformed response never gets categorized._
+_We specifically use models with the structured output capability through OpenRouter (see src/llm/client.ts) and then apply a strict JSON schema so we get the appropriate output (see src/triage/schema.ts). Then of course it's verified in code (see validate.ts); if it doesn't verify cleanly, it gets rejected, and walks down the model chain we have set up for OpenRouter, going to the next available model (see retry.ts). A malformed response never gets categorized._
 
 ## c. Where the model was wrong
 
@@ -45,7 +45,7 @@ _Originally I was using a llama 8b model, because I am trying to create the best
 > Which inputs you treated as malformed / low-signal, what your tool does with them, and why you chose that
 > behavior.
 
-_Message 10 and 11 had unparseable inputs. The tool doesn't waste a call if it cannot be parsed, so it gets rejected at the regex pattern matching phase. I chose this behavior because having a couple of guards in place prevents wasting llm calls, and a message with these patterns will always be invalid. These messages are labeled 'junk' and show the reason for the label as well._
+_Messages 10 and 11 had unparseable inputs. The tool doesn't waste a call if it cannot be parsed, so it gets rejected at the regex pattern matching phase. I chose this behavior because having a couple of guards in place prevents wasting llm calls, and a message with these patterns will always be invalid. These messages are labeled 'junk' and show the reason for the label as well. One interesting note, message 11 has a body that reads as an illegal JSON escape, so strict parsing of the entire data file that was provided would have thrown and produced zero messages. However, this was caused by a single sender with garbled data, and should never cause the whole system to fail. This is solved by fixing the JSON before parsing, but keeping the original data intact. This is what allowed it to be seen. Message 9 was low-signal; without context impossible to tell what category it belongs in. It is properly classified as unknown with a medium priority, since it could be a customer._
 
 ## e. Scale and risk
 
