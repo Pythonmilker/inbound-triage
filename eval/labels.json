@@ -1,0 +1,57 @@
+{
+  "_what": "Hand-written labels for the eval. Only the rows where the arms disagreed with each other, or where the rule floor disagreed with them, are listed. A full gold standard is not the goal; these are the rows where a label changes a number that matters.",
+  "_who": "Joel writes these. The script does not, and will not: a label written by the thing being graded proves nothing. Every category and priority below ships null and stays null until a person fills it in. A null row is counted as unlabelled, never as agreement.",
+  "_how": "Set category to one of: prospect, existing_client, fraud_risk, compliance, unknown, junk. Set priority to one of: high, medium, low. \"why\" is for you and the live session, not for the script.",
+  "_deliberately_absent": "What the arms answered is deliberately NOT in this file - it is in the report. Reading the candidates before writing the label is the same anchoring effect this eval exists to measure, applied to the labeller.",
+  "_rerun": "This file is read and never rewritten. Delete it to get a fresh stub.",
+  "labels": {
+    "inb-001": {
+      "in_stub_because": "the arms disagree with each other, and the rule floor disagrees with them",
+      "subject": "Wealth planning after a liquidity event",
+      "body": "I recently sold my business and have around $8M in proceeds to invest. Looking for help with tax-efficient planning and setting up a family office structure. Who should I speak with?",
+      "category": null,
+      "priority": null,
+      "why": ""
+    },
+    "inb-003": {
+      "in_stub_because": "the arms disagree with each other, and the rule floor disagrees with them",
+      "subject": "Portfolio analytics platform — quick demo?",
+      "body": "Hi team, we sell portfolio analytics software used by 200+ RIAs. Would love 20 minutes to show you what we do. Are you free next week?",
+      "category": null,
+      "priority": null,
+      "why": ""
+    },
+    "inb-004": {
+      "in_stub_because": "the arms disagree with each other, and the rule floor disagrees with them",
+      "subject": "Exciting opportunity",
+      "body": "Hello! I came across your profile and think you'd be a great fit for a senior role with one of my clients. Open to a chat this week?",
+      "category": null,
+      "priority": null,
+      "why": ""
+    },
+    "inb-006": {
+      "in_stub_because": "the arms disagree with each other, and the rule floor disagrees with them",
+      "subject": "Just exploring options",
+      "body": "No rush at all — I'm early in thinking about whether to work with an advisor and just gathering information. What's your minimum, and how do fees work?",
+      "category": null,
+      "priority": null,
+      "why": ""
+    },
+    "inb-007": {
+      "in_stub_because": "the arms disagree with each other, and the rule floor disagrees with them",
+      "subject": "Possible referral partnership",
+      "body": "I run a small RIA and occasionally have clients whose needs fall outside our scope. Could we explore a referral arrangement?",
+      "category": null,
+      "priority": null,
+      "why": ""
+    },
+    "inb-009": {
+      "in_stub_because": "the arms disagree with each other, and the rule floor disagrees with them",
+      "subject": "Following up",
+      "body": "Hi — just following up on our conversation. Let me know the next step whenever you get a chance. Thanks!",
+      "category": null,
+      "priority": null,
+      "why": ""
+    }
+  }
+}

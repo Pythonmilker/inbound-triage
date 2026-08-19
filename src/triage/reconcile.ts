@@ -137,7 +137,24 @@ export function reconcile({ rules, model }: ReconcileInput): ReconciledVerdict {
     // Confidence describes the category, so it follows whichever layer supplied the category.
     confidence: categoryFromRules ? rules.confidence : model.confidence,
     priority,
-    source: verdictSource(categoryFromRules, priorityRaised, modelMoreUrgent),
+    source: verdictSource({
+      categoryFromRules,
+      priorityRaised,
+      modelMoreUrgent,
+      /*
+       * Agreement requires BOTH layers to have had a real opinion, and each half of that is a guard against
+       * inflating the one number this value was added to report honestly:
+       *
+       *   - the floor abstains by returning `unknown` at weight 0. An abstention is not agreement.
+       *   - the model abstains by scoring under its own threshold. A guess at 0.3 that happens to match is
+       *     not an independent confirmation either, and the row still says the floor supplied the value
+       *     while noting that the model happened to agree.
+       */
+      independentAgreement:
+        rules.category === model.category &&
+        rules.evidenceWeight > 0 &&
+        model.confidence >= CONFIDENCE_THRESHOLD,
+    }),
     note: clauses.length === 0 ? null : sentence(clauses),
   };
 }
@@ -147,13 +164,39 @@ export function reconcile({ rules, model }: ReconcileInput): ReconciledVerdict {
  * category kept while the floor raised priority, or the floor's category kept while the model's higher
  * priority survived the maximum.
  */
-function verdictSource(
-  categoryFromRules: boolean,
-  priorityRaised: boolean,
-  modelMoreUrgent: boolean,
-): VerdictSource {
-  if (categoryFromRules) return modelMoreUrgent ? 'reconciled' : 'rules';
-  return priorityRaised ? 'reconciled' : 'model';
+function verdictSource({
+  categoryFromRules,
+  priorityRaised,
+  modelMoreUrgent,
+  independentAgreement,
+}: {
+  categoryFromRules: boolean;
+  priorityRaised: boolean;
+  modelMoreUrgent: boolean;
+  independentAgreement: boolean;
+}): VerdictSource {
+  /*
+   * `reconciled` means each layer supplied a DIFFERENT field — one the category, the other the priority.
+   * The two halves are not interchangeable and collapsing them into "the priority moved" was wrong:
+   * `modelMoreUrgent` means the model's priority won, which is the floor contributing nothing, and a row
+   * where the model supplied both fields is `model` however far apart the two priorities were.
+   */
+  // The floor's category won over a DIFFERENT model read. Everything in the verdict is the floor's unless
+  // the model's higher priority also stood, which is the original meaning of `reconciled`: one field each.
+  // Reaching for `reconciled` here just because the floor also raised the priority would be a lie — the
+  // model contributed nothing to a row where it was overruled on the category and outvoted on the priority.
+  if (categoryFromRules && !independentAgreement) {
+    return modelMoreUrgent ? 'reconciled' : 'rules';
+  }
+
+  // Past this point the two layers agreed on the category, or the model's category simply stood. If the
+  // floor then raised the priority, the verdict is not what the model returned and both layers are in it —
+  // `agreed` would understate that, because agreement is about reaching the same answer and this answer
+  // came from both of them.
+  if (priorityRaised) return 'reconciled';
+
+  if (independentAgreement) return 'agreed';
+  return 'model';
 }
 
 function higherPriority(a: Priority, b: Priority): Priority {

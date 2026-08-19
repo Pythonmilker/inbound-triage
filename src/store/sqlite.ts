@@ -43,7 +43,7 @@ const PENDING_RETRY: TriageStatus = 'pending_retry';
  * from a fresh database, and immediate for anyone who had run the app once. See `applySchema` below.
  */
 const STATUSES: Record<TriageStatus, true> = { triaged: true, pending_retry: true };
-const SOURCES: Record<VerdictSource, true> = { model: true, rules: true, reconciled: true };
+const SOURCES: Record<VerdictSource, true> = { agreed: true, model: true, rules: true, reconciled: true };
 const REASONS: Record<UnreadableReason, true> = {
   'empty-body': true,
   garbled: true,

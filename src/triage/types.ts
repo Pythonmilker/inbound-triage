@@ -167,8 +167,25 @@ export type UnreadableReason = 'empty-body' | 'garbled' | 'no-id' | 'below-thres
  */
 export type TriageStatus = 'triaged' | 'pending_retry';
 
-/** Which layer produced the verdict. Always displayed — a verdict never hides where it came from. */
-export type VerdictSource = 'model' | 'rules' | 'reconciled';
+/**
+ * Which layer produced the verdict. Always displayed — a verdict never hides where it came from.
+ *
+ * `agreed` exists because its absence was misreporting the most valuable outcome this design produces. With
+ * three values, a row where both layers independently reached the same category was filed under whichever
+ * one happened to supply it, and on the sample queue that read as the rule floor deciding almost
+ * everything — so anyone counting sources would conclude the model drove two decisions out of thirteen.
+ * Independent agreement is not the same as one layer deciding alone, and it is the outcome worth the most.
+ *
+ * - `agreed`     both layers had an opinion and reached the same category, with nothing to adjust.
+ * - `rules`      the layers disagreed and the deterministic read won.
+ * - `model`      the model's category stood, either uncontested or because the floor had no evidence.
+ * - `reconciled` both contributed something different: a category from one, a priority change from the other.
+ *
+ * `agreed` requires the floor to have actually HAD evidence. A floor verdict of `unknown` at weight 0 is an
+ * abstention, not agreement, and recording it as agreement would inflate exactly the number this value was
+ * added to report honestly.
+ */
+export type VerdictSource = 'agreed' | 'model' | 'rules' | 'reconciled';
 
 /** Typed model-call failures. The kind decides the behaviour; see DESIGN §4.2b. */
 export type FailureKind =
