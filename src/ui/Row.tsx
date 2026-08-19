@@ -6,7 +6,7 @@
  *      and its attempt sentence in the summary column — never a grey category chip, never a normal-
  *      looking row with empty cells.
  *   2. `unreadable` is a verdict about the CONTENT, not a crash. It is styled in the neutral family and
- *      the failure family is the only thing wearing red, because a reviewer scanning chips must not read
+ *      the failure family is the only thing wearing red, because someone scanning chips must not read
  *      "this message is garbage" as "the app broke" — the collision that got `error` rejected (D-013).
  *   3. The verdict SOURCE is always on the collapsed row. A verdict never hides where it came from.
  *

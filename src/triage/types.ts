@@ -109,7 +109,7 @@ export interface InboundMessage {
 }
 
 /**
- * Sentinels that appear in `from_org` and are NOT organisation names. The brief says so explicitly, and a
+ * Sentinels that appear in `from_org` and are NOT organisation names. A
  * naive prompt treats them as real firms anyway — so they are stripped before the model ever sees them.
  */
 export const ORG_SENTINELS = ['(individual)', '(unknown)', ''] as const;

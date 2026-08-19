@@ -4,7 +4,7 @@
  * A file is the configuration the app actually ships: it exercises the mkdir, the WAL pragma and the
  * STRICT tables on disk, and it is the only way to corrupt a column behind the store's back — which is
  * how the `attempts` blob gets tested for the property that matters, that a bad attempt log costs one
- * row's history and not the whole listing the reviewer is looking at.
+ * row's history and not the whole listing the user is looking at.
  */
 
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -233,7 +233,7 @@ describe('a corrupt attempts blob', () => {
     await reopenAfter(() => corruptAttempts(TRIAGED.message_id, 'not json at all'));
 
     const read = await store.getResult(TRIAGED.message_id);
-    // The listing is the surface the reviewer is looking at. Throwing here would take all thirteen rows
+    // The listing is the surface the user is looking at. Throwing here would take all thirteen rows
     // down over one bad column, so the history is what is lost, not the verdict.
     expect(read).not.toBeNull();
     expect(read?.attempts).toEqual([]);

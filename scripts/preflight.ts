@@ -7,7 +7,7 @@
  * sentence naming the version they have and the version the repo pins is the entire job.
  *
  * D-014 — no keyless mode. A missing key is fatal here rather than a degraded run: this tool calls an LLM
- * per message, which is what the brief asks for, so "it started and produced rule-based output" is a
+ * per message by design, so "it started and produced rule-based output" is a
  * worse outcome than not starting.
  *
  * Two rules for anything added below. It never prints the key, or any prefix, suffix or length of it —

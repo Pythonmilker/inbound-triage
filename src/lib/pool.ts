@@ -1,6 +1,6 @@
 /**
  * Bounded concurrency, and all of it (DESIGN §2.3). Serial is slow, unbounded gets rate-limited; a worker
- * pool or instance orchestration would be gold-plating on a 13-item queue, so this is the whole mechanism.
+ * pool or instance orchestration would be over-engineering for a queue this size, so this is the whole mechanism.
  *
  * REJECT-SAFE BY CAPTURE, which is the load-bearing choice here: a rejected `fn` cancels nothing. Every
  * item still runs, and the failure is rethrown only once everything has settled — one dead model call must

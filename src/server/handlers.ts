@@ -28,7 +28,7 @@ import type { InboundMessage, TriageResult } from '../triage/types.js';
 /** The queue's source of truth. Re-read on every request, so an edited message re-triages. */
 const DEFAULT_INBOUND = 'raw/inbound.json';
 
-/** Created on first use, and gitignored — a reviewer's clone starts with no database and no rows. */
+/** Created on first use, and gitignored — a fresh clone starts with no database and no rows. */
 const DEFAULT_DB = 'data/triage.db';
 
 /**
@@ -104,7 +104,7 @@ interface Paths {
 
 function resolvePaths(env: Record<string, string>): Paths {
   // TRIAGE_INBOUND is a test seam rather than a documented setting — .env.example names TRIAGE_DB,
-  // TRIAGE_MODEL and TRIAGE_CONCURRENCY, which are the three a reviewer would ever set.
+  // TRIAGE_MODEL and TRIAGE_CONCURRENCY, which are the three anyone would realistically set.
   const inbound = env['TRIAGE_INBOUND']?.trim() || DEFAULT_INBOUND;
   const db = env['TRIAGE_DB']?.trim() || DEFAULT_DB;
   return { inbound: resolve(process.cwd(), inbound), db: resolve(process.cwd(), db) };

@@ -3,7 +3,7 @@ model {
   operator = actor 'Operator' {
     summary 'The person triaging the inbox. Supplies the API key themselves.'
     description '''
-      In the assessment this is the reviewer running the tool. The app ships configured but never carries
+      Also whoever runs the tool from a clone. It ships configured but never carries
       a credential, so the key comes from whoever runs it.
     '''
     metadata { spec 'docs/DESIGN.md#5' }

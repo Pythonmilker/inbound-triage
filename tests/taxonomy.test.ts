@@ -106,7 +106,7 @@ describe('unknown and unreadable are different things', () => {
      * transport data. The next action is to discard, or to check whether the intake form is broken.
      *
      * Merging them, or renaming `unreadable` to `error`, loses that difference. `error` was rejected
-     * specifically because it collides with the status axis: a reviewer scanning the grid would read it as
+     * specifically because it collides with the status axis: someone scanning the grid would read it as
      * "the app broke" rather than "this message is garbage".
      */
     expect(CATEGORY_IDS).toContain('unknown');

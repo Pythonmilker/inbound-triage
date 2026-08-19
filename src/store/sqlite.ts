@@ -2,7 +2,7 @@
  * The only Store implementation that ships (D-010: one store, no fallback).
  *
  * `node:sqlite` is built in, so there is nothing to install and no native module to compile — a failed
- * native build on a fresh clone is exactly the failure a reviewer would hit. It needs Node >= 22.13.0,
+ * native build on a fresh clone is exactly the failure a new user would hit. It needs Node >= 22.13.0,
  * which is declared in `engines` and checked by the dev preflight; the requirement is stated, not
  * cushioned with a second code path.
  *
@@ -128,7 +128,7 @@ function toAttempt(value: unknown): Attempt | null {
 /**
  * `attempts` is the one column SQLite cannot type-check for us, so it is the one column validated on read.
  * A corrupt or half-written value yields an empty array and leaves the rest of the row usable: a bad
- * attempt log must not take down the whole listing, which is the surface the reviewer is looking at.
+ * attempt log must not take down the whole listing, which is the surface the user is looking at.
  */
 function readAttempts(value: SQLOutputValue | undefined): Attempt[] {
   if (typeof value !== 'string') return [];

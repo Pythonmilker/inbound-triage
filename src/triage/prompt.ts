@@ -118,7 +118,7 @@ export function buildUserPrompt(m: InboundMessage, signals: Signal[]): string {
  */
 export function renderMessageBlock(m: InboundMessage): string {
   /*
-   * The brief states that `(individual)` and `(unknown)` are not organisation names. Passed through, a
+   * `(individual)` and `(unknown)` are sentinels in the source data, not organisation names. Passed through, a
    * model reads them as firms — which is what turns a private individual asking about fees into an
    * institutional enquiry. The sentinel itself still reaches the model as the `org_is_sentinel` reading in
    * the scan, where it is labelled as a check result rather than presented as the sender's employer.

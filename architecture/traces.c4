@@ -102,7 +102,7 @@ views {
   dynamic view trace-failure {
     title 'Trace — the call fails, and the work is kept'
     description '''
-      The path the brief actually asks about: an API error that must not take the run down.
+      The path that matters most in practice: an API error that must not take the run down.
 
       The design decision on display is that the queue is a record of **work we could not do yet**, not a
       mechanism for waiting out an outage. It drains when the blocker clears — including when the operator

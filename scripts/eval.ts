@@ -380,7 +380,7 @@ function readLabels(path: string, knownIds: ReadonlySet<string>): Labels {
 }
 
 const LABELS_STUB_NOTES = {
-  what: 'Hand-written labels for the eval. Only the rows where the arms disagreed with each other, or where the rule floor disagreed with them, are listed. The brief never asked for a labelled set, so a full gold standard would be gold-plating; these are the rows where a label changes a number that matters.',
+  what: 'Hand-written labels for the eval. Only the rows where the arms disagreed with each other, or where the rule floor disagreed with them, are listed. A full gold standard is not the goal; these are the rows where a label changes a number that matters.',
   who: 'Joel writes these. The script does not, and will not: a label written by the thing being graded proves nothing. Every category and priority below ships null and stays null until a person fills it in. A null row is counted as unlabelled, never as agreement.',
   how: `Set category to one of: ${CATEGORY_IDS.join(', ')}. Set priority to one of: ${PRIORITY_IDS.join(', ')}. "why" is for you and the live session, not for the script.`,
   absent:
