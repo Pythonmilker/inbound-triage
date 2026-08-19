@@ -23,7 +23,8 @@ import { TRIAGE_SCHEMA, TRIAGE_SCHEMA_NAME } from '../src/triage/schema.js';
 
 const SPEC: TriageRequestSpec = { system: 'system prompt', user: 'user prompt', maxTokens: 600 };
 
-const PRIMARY = 'meta-llama/llama-3.1-8b-instruct';
+/** The head of the shipping chain. Moved from the 8B when the held-out eval reversed D-006. */
+const PRIMARY = 'meta-llama/llama-3.3-70b-instruct';
 
 /** Registered and disqualified by its own capability flag — see MODEL_REGISTRY's note on it. */
 const UNCAPABLE = 'qwen/qwen3-8b';
@@ -190,7 +191,7 @@ describe('the rest of the body', () => {
 
   it('prices a registered slug and returns null for one it never priced', () => {
     expect(TRIAGE_CHAIN[0]).toBe(PRIMARY);
-    expect(estimateCostUsd(PRIMARY, 1_000_000, 1_000_000)).toBeCloseTo(0.13, 10);
+    expect(estimateCostUsd(PRIMARY, 1_000_000, 1_000_000)).toBeCloseTo(0.42, 10);
     // Null rather than 0: a zero disappears into a total and reads as free.
     expect(estimateCostUsd(NOT_REGISTERED, 1_000_000, 1_000_000)).toBeNull();
   });

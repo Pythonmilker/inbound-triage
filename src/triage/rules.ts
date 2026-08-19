@@ -190,7 +190,21 @@ const PRIORITY_MODIFIERS: readonly PriorityModifier[] = [
   // Money leaving. Someone billing the firm is work for operations, not for an advisor.
   { signal: 'money_outbound', points: -1, exceptFor: NEVER },
   // An adjective, worth half a date.
-  { signal: 'time_sensitive_claim', points: 1, exceptFor: NEVER },
+  /*
+   * An adjective, worth half a date — and worth nothing at all when the message is `unknown`.
+   *
+   * A planted prompt injection carried the subject "URGENT - read this first". That tripped this signal and
+   * the floor returned `unknown` / high: a message the layer could not classify at all still reached the top
+   * of the queue, on the strength of a word the sender chose. An adjective may amplify evidence and may not
+   * create it. If nothing else in the message was independently recognised, the sender's own claim about
+   * urgency moves nothing.
+   *
+   * `unknown` still floors at medium (D-028), so an unplaceable urgent message is not buried either — it
+   * simply cannot jump the queue. Residual risk: an injection that also trips a category signal would still
+   * get the bump. This one did not, because `self_identified_client` requires the first person and the
+   * injection wrote "this message is from a long-standing client" in the third.
+   */
+  { signal: 'time_sensitive_claim', points: 1, exceptFor: [...NEVER, 'unknown'] },
   { signal: 'third_party_requester', points: 1, exceptFor: NEVER },
   // Anger is not urgency. It is worth one point from someone who is already a client, because retention is
   // the exposure, and nothing at all from anyone else.

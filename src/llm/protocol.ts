@@ -107,17 +107,32 @@ export const MODEL_REGISTRY: Record<string, ModelFacts> = {
 export const MAX_CHAIN_MODELS = 3;
 
 /**
- * Cheap primary, then a different vendor, then a much larger model of the first family.
+ * The most accurate model measured on unseen mail, then a different vendor, then the cheap one.
  *
- * The order is escalation for our own fallthrough (DESIGN §4.2b): OpenRouter's `models` array only
- * falls through on provider errors, so a reply that fails validation is re-requested against the next
- * slug by us. Slot 2 crosses vendors deliberately — a second Llama is likelier to reproduce the first
- * one's mistake than to correct it.
+ * The order is escalation for our own fallthrough (DESIGN §4.2b): OpenRouter's `models` array only falls
+ * through on provider errors, so a reply that fails validation is re-requested against the next slug by us.
+ * Slot 2 crosses vendors deliberately — a second Llama is likelier to reproduce the first one's mistake than
+ * to correct it.
+ *
+ * **This order is reversed from what it was, and the reason is worth keeping.** The 8B led on cost, chosen
+ * when the only accuracy figures came from the 13 supplied messages — the same messages the rule layer's
+ * patterns were written against, where every model scored 83-100% and cost was the only column that
+ * separated them. Measured on a held-out set the patterns had never seen, the 8B gets 50% of categories
+ * right and the 70B 75%, for about $1.79 against $1.18 per ten thousand messages a day. A tie-breaker that
+ * decides a twenty-five point gap is not a tie-breaker.
+ *
+ * Two other measurements shaped this. Claude Haiku 4.5 scored highest of the four tested (83%) and costs
+ * roughly fifteen times the 70B for a single extra row — inside the run-to-run noise of a twelve-row set, so
+ * it stays available as a documented `TRIAGE_MODEL` override rather than shipping. And injecting the rule
+ * floor's conclusion into the prompt cost the 8B thirty-three points while the 70B and Haiku ignored it
+ * entirely: suggestibility is a small-model property, which argues for the larger model twice over.
+ *
+ * The 8B keeps the last slot. A cheap model that answers beats no answer.
  */
 export const TRIAGE_CHAIN: readonly string[] = [
-  'meta-llama/llama-3.1-8b-instruct',
-  'openai/gpt-4.1-nano',
   'meta-llama/llama-3.3-70b-instruct',
+  'openai/gpt-4.1-nano',
+  'meta-llama/llama-3.1-8b-instruct',
 ];
 
 /**
