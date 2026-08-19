@@ -199,7 +199,7 @@ const PRIORITY_MODIFIERS: readonly PriorityModifier[] = [
    * create it. If nothing else in the message was independently recognised, the sender's own claim about
    * urgency moves nothing.
    *
-   * `unknown` still floors at medium (D-028), so an unplaceable urgent message is not buried either — it
+   * `unknown` still floors at medium, so an unplaceable urgent message is not buried either — it
    * simply cannot jump the queue. Residual risk: an injection that also trips a category signal would still
    * get the bump. This one did not, because `self_identified_client` requires the first person and the
    * injection wrote "this message is from a long-standing client" in the third.

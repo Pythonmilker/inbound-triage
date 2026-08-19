@@ -8,3 +8,8 @@ data/
 *.db-shm
 .DS_Store
 dist-map/
+
+# Local assistant tooling: editor/agent config, not product. Kept on disk, out of the repo — a public
+# repo describing itself as a "gig" with "acceptance criteria" says something about the artifact that
+# is not true of the code.
+.claude/

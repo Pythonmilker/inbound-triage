@@ -282,7 +282,7 @@ const ESCALATION: readonly RegExp[] = [
  * reason it is its own category rather than a priority bump: the correct handling is not "deal with this
  * quickly" but "do not act on this instruction at all until you have called a number already on file".
  *
- * It fires on nothing in the sample fixture and that is the point (D-018). A guard is judged on the input
+ * It fires on nothing in the sample fixture and that is the point. A guard is judged on the input
  * it has not seen yet.
  */
 const WIRE_CHANGE: readonly RegExp[] = [

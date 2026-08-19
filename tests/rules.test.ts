@@ -287,7 +287,7 @@ const CORPUS: readonly Phrasing[] = [
     category: 'junk',
     priority: 'low',
   },
-  // The two categories the never-firing guards made reachable (D-018). Neither appears in the supplied
+  // The two categories the never-firing guards made reachable. Neither appears in the supplied
   // queue, which is exactly why they are covered here: a guard is judged on the input it has not seen.
   {
     why: 'fraud risk: a payment redirect, whether or not the sender looks legitimate',

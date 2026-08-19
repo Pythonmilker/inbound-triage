@@ -178,7 +178,7 @@ Seven categories, closed: `prospect` · `existing_client` · `vendor` · `partne
 `partner_referral` exists because `inb-007` (an RIA proposing a referral arrangement) is neither a
 prospect nor a vendor, and collapsing it into either loses the routing decision that matters.
 
-**The last two are deliberately different things** (D-012, Joel's assignment):
+**The last two are deliberately different things** (Joel's assignment):
 
 | Label | Means | Example | Next action |
 |---|---|---|---|
@@ -188,7 +188,7 @@ prospect nor a vendor, and collapsing it into either loses the routing decision 
 One of the two has to exist regardless: a queue where everything is confidently categorised is a flattery
 generator, and a reviewer can tell.
 
-**`unreadable`, not `error`** (D-013). `error` as a *category* would have sat beside API failures that are
+**`unreadable`, not `error`**. `error` as a *category* would have sat beside API failures that are
 colloquially errors but are a *status*, so a reviewer scanning `ERROR` chips could read "the app broke"
 rather than "this message is garbage." `unreadable` removes the collision outright and is more precise than
 `malformed`: it covers an empty body as naturally as a corrupted one, where "malformed" implies a structural
@@ -212,7 +212,7 @@ apart means a failed call never has to pretend to be a category.
 **D-011b resolved (3b): a failed call asserts no verdict at all** — no category, no priority, no rule-floor
 stand-in. The row shows the failure kind, the attempt count, and nothing it cannot stand behind.
 
-### The queue is deferred work, not outage recovery (D-013)
+### The queue is deferred work, not outage recovery
 
 Claude's first taxonomy split failures into "transient, so queue" versus "permanent, so terminal", and put a
 rejected key in the second bucket on the grounds that retrying cannot fix a bad credential. **Joel overruled
@@ -226,7 +226,7 @@ items' worth of pending work at the exact moment the fix was one environment var
 
 | Failure | Behaviour | Drains when |
 |---|---|---|
-| **No key configured** | **the app refuses to start**, naming the variable and pointing at the README (D-014 — there is no keyless mode) | n/a |
+| **No key configured** | **the app refuses to start**, naming the variable and pointing at the README (there is no keyless mode) | n/a |
 | **Key rejected / unfunded** (401, 403, 402) | `pending_retry`, banner names exactly what to fix | the operator sets a valid or funded key and re-runs |
 | **Transient** (429, timeout, 5xx, network) | `pending_retry` | the provider answers again |
 | **Unparseable reply** | falls through the model chain first (below), then `pending_retry` | a later attempt parses |
@@ -236,7 +236,7 @@ exhausted its cap reads *"could not triage — 3 attempts across 2 models, last 
 and stays manually retryable. That is terminal in effect and honest on its face, which is the property
 worth having.
 
-**Model fallthrough on an unparseable reply** (D-013). OpenRouter's own `models` array only falls through on
+**Model fallthrough on an unparseable reply**. OpenRouter's own `models` array only falls through on
 *provider* errors — a 200 containing prose is a success as far as it is concerned, so it will not retry.
 The fallthrough therefore has to be ours: on a reply that fails validation, re-request with the next model
 in the chain explicitly, up to the chain length. The chain is capped at 3 (OpenRouter rejects a longer
@@ -244,7 +244,7 @@ in the chain explicitly, up to the chain length. The chain is capped at 3 (OpenR
 deliberately excluded: a reply truncated at `max_tokens` is not a model-quality problem, so it raises the
 cap and retries the *same* model rather than burning a chain slot.
 
-### No keyless mode — the tool ships key-configured (D-014)
+### No keyless mode — the tool ships key-configured
 
 Joel: *"I dont want it to ship keyless, it should be key configured ready to go. changing the key needs to
 be a config change documented in the readme."* Keyless mode is **cut**, and this is the same rule as D-010
@@ -419,7 +419,7 @@ malformed item is an ordinary result row rather than a separate table. `triage_r
 Results are keyed `{message_id}` with a `content_hash`, so a re-run is idempotent and an edited message
 re-triages.
 
-**Exactly one store ships, and there is no fallback** (D-010). A JSON fallback was proposed as insurance
+**Exactly one store ships, and there is no fallback**. A JSON fallback was proposed as insurance
 against an old Node runtime and rejected: it would carry a second code path that nothing exercises, and it
 would silently remove the scalability property SQLite was chosen for in the first place — robustness in
 appearance, a quiet downgrade in fact. The runtime requirement gets *stated*, not cushioned:
