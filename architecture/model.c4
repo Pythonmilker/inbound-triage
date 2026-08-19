@@ -45,7 +45,7 @@ model {
       metadata { spec 'docs/DESIGN.md#5' }
 
       ui = component 'Triage grid' {
-        #planned
+        #built
         technology 'React · hand-written CSS'
         summary 'Tag chips, a filter bar with live counts, and rows that expand in place.'
         description '''
@@ -56,24 +56,36 @@ model {
           explain how this data would be modelled there, so the interface is the visual half of that
           written answer.
         '''
-        metadata { spec 'docs/DESIGN.md#8' }
+        link ../src/ui/Grid.tsx 'source'
+        metadata {
+          spec 'docs/DESIGN.md#8'
+          file 'src/ui/Grid.tsx'
+        }
       }
 
       summarybar = component 'Run summary bar' {
-        #planned
+        #built
         summary 'One line after every run: how many were triaged, how many were not, and the last failure.'
         description '''
           Always present, never blank. A clean run says so. When the model chain is exhausted for an item,
           this is the headline that tells a human to look — a row sitting quietly in a queue is not loud
           enough for that.
         '''
-        metadata { spec 'docs/DESIGN.md#4.2d' }
+        link ../src/ui/SummaryBar.tsx 'source'
+        metadata {
+          spec 'docs/DESIGN.md#4.2d'
+          file 'src/ui/SummaryBar.tsx'
+        }
       }
 
       apiclient = component 'API client' {
-        #planned
+        #built
         summary 'The single place any URL appears. Sends plain requests, receives rows.'
-        metadata { spec 'docs/DESIGN.md#8' }
+        link ../src/ui/api.ts 'source'
+        metadata {
+          spec 'docs/DESIGN.md#8'
+          file 'src/ui/api.ts'
+        }
       }
     }
 
@@ -93,22 +105,30 @@ model {
       metadata { spec 'docs/DESIGN.md#5' }
 
       preflight = component 'Preflight' {
-        #planned
+        #built
         summary 'Refuses to start when the Node version is too old or no API key is set.'
         description '''
           It names the variable and the two commands that fix it. There is deliberately no offline mode: a
           key-less mode was designed and cut, because it would have been a cushion for a stated
           requirement.
         '''
-        metadata { spec 'docs/DESIGN.md#5' }
+        link ../scripts/preflight.ts 'source'
+        metadata {
+          spec 'docs/DESIGN.md#5'
+          file 'scripts/preflight.ts'
+        }
       }
 
       server = component 'API surface' {
-        #planned
+        #built
         technology 'Vite configureServer middleware'
         summary 'List messages, list results, run the triage, retry what is pending, report health.'
         description 'Reads are GET so they can be opened in a browser tab while debugging.'
-        metadata { spec 'docs/DESIGN.md#5' }
+        link ../src/server/handlers.ts 'source'
+        metadata {
+          spec 'docs/DESIGN.md#5'
+          file 'src/server/handlers.ts'
+        }
       }
 
       engine = container 'Triage engine' {
@@ -122,7 +142,7 @@ model {
         metadata { spec 'docs/DESIGN.md#2.3' }
 
         ingest = component 'Loader' {
-          #planned
+          #built
           summary 'Reads the message file and repairs it before parsing.'
           description '''
             The supplied sample file is *itself* one of the planted edge cases: one message body contains
@@ -132,11 +152,15 @@ model {
             corrupted bytes intact so a later stage can still recognise that message as garbage rather
             than quietly laundering it clean.
           '''
-          metadata { spec 'docs/DESIGN.md#4.1' }
+          link ../src/ingest/load.ts 'source'
+          metadata {
+            spec 'docs/DESIGN.md#4.1'
+            file 'src/ingest/load.ts'
+          }
         }
 
         observations = component 'Observations' {
-          #planned
+          #built
           summary 'Turns each message into a fixed list of factual readings — every signal, present or absent.'
           description '''
             Does the sender claim to be a client, is there a deadline, is there complaint language, is this
@@ -146,21 +170,29 @@ model {
             on any of them. That is what keeps it an instrument reading rather than a suggestion — and it
             is the reason it can be shown to the model at all.
           '''
-          metadata { spec 'docs/DESIGN.md#5b' }
+          link ../src/triage/observations.ts 'source'
+          metadata {
+            spec 'docs/DESIGN.md#5b'
+            file 'src/triage/observations.ts'
+          }
         }
 
         rules = component 'Rule floor' {
-          #planned
+          #built
           summary 'The deterministic verdict, from the observations alone. Not a fallback — it always runs.'
           description '''
             A category and a priority with a confidence that rises with the number of *independent* signals
             that agreed. It is one of the two inputs the next stage combines, on every message.
           '''
-          metadata { spec 'docs/DESIGN.md#4.3' }
+          link ../src/triage/rules.ts 'source'
+          metadata {
+            spec 'docs/DESIGN.md#4.3'
+            file 'src/triage/rules.ts'
+          }
         }
 
         prompt = component 'Prompt builder' {
-          #planned
+          #built
           summary 'Sends the raw message plus the observations — and deliberately withholds the verdict.'
           description '''
             The instructions are built from the taxonomy rows themselves, so the categories described in
@@ -170,11 +202,15 @@ model {
             judgment while no longer being any, and the comparison downstream would then be two opinions
             from one source.
           '''
-          metadata { spec 'docs/DESIGN.md#5b' }
+          link ../src/triage/prompt.ts 'source'
+          metadata {
+            spec 'docs/DESIGN.md#5b'
+            file 'src/triage/prompt.ts'
+          }
         }
 
         llm = component 'Model transport' {
-          #planned
+          #built
           technology 'fetch · injectable'
           summary 'One outbound call per message, with each failure kind kept distinct.'
           description '''
@@ -185,11 +221,15 @@ model {
             Notably an unfunded account is *not* folded in with a rate limit: one means fund the key, the
             other means wait. The sibling project in this workspace conflates them; this corrects it.
           '''
-          metadata { spec 'docs/DESIGN.md#4.2b' }
+          link ../src/llm/client.ts 'source'
+          metadata {
+            spec 'docs/DESIGN.md#4.2b'
+            file 'src/llm/client.ts'
+          }
         }
 
         validate = component 'Re-validation' {
-          #planned
+          #built
           summary 'Checks every field again, because a constrained output is a strong hint and not a guarantee.'
           description '''
             A near-miss is a failure, not something to quietly repair — silently correcting a wrong label
@@ -198,12 +238,16 @@ model {
             It also separates a reply cut off mid-generation from one that was simply wrong: the first is
             fixed by allowing more room and retrying the same model, the second by trying a different one.
           '''
-          metadata { spec 'docs/DESIGN.md#5b' }
+          link ../src/triage/validate.ts 'source'
+          metadata {
+            spec 'docs/DESIGN.md#5b'
+            file 'src/triage/validate.ts'
+          }
         }
 
         reconcile = component 'Reconciliation' {
           #surprise
-          #planned
+          #built
           summary 'Where the two verdicts meet — and it calls no model. Ordinary code.'
           description '''
             There is exactly one model call per message and it already happened by the time this runs.
@@ -213,11 +257,15 @@ model {
             while a false high costs one glance. Category takes the model's answer *unless* the sender
             explicitly said they were a client, because that is a fact stated in the text.
           '''
-          metadata { spec 'docs/DESIGN.md#4.3' }
+          link ../src/triage/reconcile.ts 'source'
+          metadata {
+            spec 'docs/DESIGN.md#4.3'
+            file 'src/triage/reconcile.ts'
+          }
         }
 
         retry = component 'Retry queue' {
-          #planned
+          #built
           summary 'A record of work that could not be done yet — including work blocked on the operator.'
           description '''
             Not a mechanism for waiting out an outage. It drains whenever the blocker clears, which is why
@@ -227,17 +275,25 @@ model {
             because the provider only falls through on its own errors and a reply that arrived
             successfully but wrong is, to it, a success.
           '''
-          metadata { spec 'docs/DESIGN.md#4.2c' }
+          link ../src/triage/retry.ts 'source'
+          metadata {
+            spec 'docs/DESIGN.md#4.2c'
+            file 'src/triage/retry.ts'
+          }
         }
 
         pool = component 'Bounded pool' {
-          #planned
+          #built
           summary 'Runs a few messages at a time, returning results in input order.'
           description '''
             Without it the queue is either serial and slow or unbounded and rate-limited. One failed call
             does not stop the others.
           '''
-          metadata { spec 'docs/DESIGN.md#2.3' }
+          link ../src/lib/pool.ts 'source'
+          metadata {
+            spec 'docs/DESIGN.md#2.3'
+            file 'src/lib/pool.ts'
+          }
         }
       }
 
@@ -246,7 +302,7 @@ model {
         metadata { spec 'docs/DESIGN.md#4.4' }
 
         sqlitestore = component 'SQLite store' {
-          #planned
+          #built
           technology 'node:sqlite — zero dependencies'
           summary 'Uses the database built into the runtime, so there is nothing to install.'
           description '''
@@ -254,7 +310,11 @@ model {
             a content fingerprint, which is what makes a re-run idempotent: an unchanged message is
             skipped, an edited one is triaged again.
           '''
-          metadata { spec 'docs/DESIGN.md#4.4' }
+          link ../src/store/sqlite.ts 'source'
+          metadata {
+            spec 'docs/DESIGN.md#4.4'
+            file 'src/store/sqlite.ts'
+          }
         }
 
         airtableseam = component 'Airtable store' {
@@ -274,9 +334,13 @@ model {
         metadata { spec 'docs/DESIGN.md#4.5' }
 
         consolenotify = component 'Console notifier' {
-          #planned
+          #built
           summary 'A real, working implementation — which is what makes the interface a seam and not a guess.'
-          metadata { spec 'docs/DESIGN.md#4.5' }
+          link ../src/integrations/notify.ts 'source'
+          metadata {
+            spec 'docs/DESIGN.md#4.5'
+            file 'src/integrations/notify.ts'
+          }
         }
 
         slackseam = component 'Slack notifier' {
@@ -292,14 +356,16 @@ model {
       }
 
       db = datastore 'triage.db' {
-        #planned
+        #built
         technology 'SQLite · WAL'
         summary 'Two tables, not three. An unreadable message is an ordinary row, not a separate bucket.'
         description '''
           It carries the label `unreadable` like any other category, which is what removed a whole surface
           from the interface.
         '''
+        link ../src/store/sqlite.ts 'source'
         metadata {
+          file 'src/store/sqlite.ts'
           spec 'docs/DESIGN.md#4.4'
           tables 'messages · triage_results'
           key 'triage_results keyed by message_id, carrying content_hash'

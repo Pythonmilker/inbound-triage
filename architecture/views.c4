@@ -9,23 +9,35 @@ views {
       design section or file it came from.
 
       ### What this map is
-      Written from the locked design, mostly *before* the code existed — so nearly everything is tagged
-      **planned** (dashed and muted) rather than built. That distinction is the point: a planned box is a
-      claim about intent, and you should be able to tell it from a fact at a glance. Two boxes are solid,
-      because those files exist and were verified: the sample data and the taxonomy.
+      This started as a design model written *before* the code existed. **It is now the as-built map**:
+      every element has graduated to a real file, so each box carries both a `spec` anchor into the design
+      section that decided it and a `file` anchor into the code that implements it. Click a box, then its
+      **source** link.
 
-      ### What surprised me while designing it
-      The supplied sample data file is *itself* one of the planted edge cases — not just the messages
-      inside it. It contains escape sequences that are illegal in JSON, so reading it with a strict parser
-      fails on the whole file. Verified rather than assumed: the parse fails at line 98, and repairing the
-      escapes recovers all thirteen messages with the corrupted bytes still intact, so a later stage can
-      still recognise one message as garbage instead of quietly cleaning it up.
+      Exactly two boxes are still dashed and muted, and that is deliberate — an Airtable store and a Slack
+      notifier are **not built by choice**. Each sits behind an interface that has a real working
+      implementation, which is what makes them seams rather than gaps.
+
+      ### What surprised me
+      The supplied sample data file is *itself* one of the planted edge cases — not just the messages inside
+      it. It contains escape sequences that are illegal in JSON, so reading it with a strict parser fails on
+      the whole file. Verified rather than assumed: the parse fails at line 98, and repairing the escapes
+      recovers all thirteen messages with the corrupted bytes still intact, so a later stage can still
+      recognise one message as garbage instead of quietly cleaning it up.
+
+      The repair itself hid a second trap. A naive global replace of `\\xHH` also matches the `\\x` inside a
+      *legitimately* escaped backslash, silently rewriting that value. The loader walks the string instead.
 
       ### Coverage, honestly
-      This is a design model, not a reading of finished code. Sixteen design decisions are settled and
-      recorded in `DECISIONS.md`; two components are marked as deliberately **not built** (an Airtable
-      store and a Slack notifier) and appear as seams. Nothing here was inferred from a framework
-      convention — every box traces to a design section or a file.
+      Sixteen design decisions settled and recorded in `DECISIONS.md`. 213 tests passing across 11 files,
+      with no API key configured — every test injects its network function rather than calling out. Three
+      real defects were found by tests written against this design and then fixed: a discourse marker read
+      as a complaint, an undeclared field accepted instead of rejected, and a chain escalation that
+      re-requested one model five times because it recorded the slug the provider *answered* with rather
+      than the one we asked for.
+
+      Not yet verified end to end against a live provider — that needs a key, and it is the next step.
+      Nothing here was inferred from a framework convention.
 
       ### What to read next
       The **App layers** view, for how the browser and the server process divide the work — and where the

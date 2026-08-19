@@ -107,7 +107,10 @@ const DEADLINE: readonly RegExp[] = [
 const COMPLAINT: readonly RegExp[] = [
   /\b(?:don'?t|do\s+not|didn'?t)\s+understand\b/i,
   /\b(?:not\s+happy|unhappy|disappointed|frustrat(?:ed|ing)|unacceptable)\b/i,
-  /\bfrankly\b/i,
+  // "frankly" was here and is deliberately gone: it is a discourse marker, not dissatisfaction.
+  // "Frankly, this looks great" is not a complaint, and priority is defined by deadline and money at
+  // risk rather than register. The one complaint in the sample fixture still matches twice without it
+  // ("don't understand" and "not happy"), so nothing is lost by dropping it.
   /\bcomplain(?:t|ing|ts)?\b/i,
   /\b(?:unexpected|surprise|unexplained|duplicate)\s+(?:fee|charge|billing)\b/i,
   /\b(?:fee|charge|billing)\s+(?:dispute|error|issue|question)\b/i,

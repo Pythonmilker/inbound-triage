@@ -83,6 +83,22 @@ function validateObject(raw: unknown): ValidationOk | ValidationErr {
     else problems.push(message);
   }
 
+  /*
+   * A key the schema never declared is a rejection, not something to ignore.
+   *
+   * The schema sets `additionalProperties: false`, so a compliant provider cannot send one — which means
+   * an extra key is evidence that the schema was not enforced on this reply at all. That is the exact
+   * silent failure this layer exists to catch: the endpoint ignored `response_format` and answered from
+   * the prompt instead. Dropping the unknown key and accepting the rest would let a completely
+   * unconstrained reply through whenever it happened to contain the right field names.
+   */
+  const undeclared = Object.keys(raw).filter(
+    (key) => !(REQUIRED_KEYS as readonly string[]).includes(key),
+  );
+  for (const key of undeclared) {
+    violation(`unexpected key "${key}" — the schema declares additionalProperties: false`);
+  }
+
   const draft: Partial<ModelVerdict> = {};
 
   // A near-miss is a failure, not a value to fix. Mapping "High" onto `high` or "existing-client" onto
