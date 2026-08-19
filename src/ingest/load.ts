@@ -9,6 +9,18 @@
  * Repairing here rather than editing the data is the decision. Fixing the fixture by hand would have been
  * quicker and would have destroyed the malformed message the tool is supposed to survive.
  *
+ * WHERE THIS COMES FROM IN A REAL SYSTEM, because it is not a quirk of one fixture. A sender cannot put
+ * `\x00` into JSON; they have no access to the file. What they control is the bytes of a message body: a
+ * NUL, a truncated MIME forward, an attachment mangled inline. Something then has to serialise that body
+ * into JSON, and a correct serialiser writes `\u0000`. A naive one emits `\x00`, which is valid JavaScript and
+ * invalid JSON, and the file is broken. The sender is the trigger; the ingestion layer is the defect.
+ *
+ * Which makes this a denial of service rather than an oddity: without the repair, ONE sender's message makes
+ * the whole queue unparseable and the run yields zero rows, not twelve good ones and one bad one. NUL bytes
+ * in a user-controlled field are a well-worn truncation and injection vector, so a hostile sender would
+ * reach for exactly this. The real fix belongs upstream in whatever writes the file; this is defence against
+ * a producer we do not control.
+ *
  * The NUL characters survive that rewrite on purpose. Same codepoint, legal syntax: stripping them here
  * would hide the garbage from the layer whose job it is to call the message unreadable.
  *
