@@ -1,6 +1,8 @@
 # Inbound Triage Assistant — design
 
-Take-home for the Arootah AI Product Engineer role. Written before the build.
+Take-home for the Arootah AI Product Engineer role. Written before the build, and kept as the design
+record rather than rewritten to match what shipped: where the build diverged, the divergence is marked in
+place. The shipped taxonomy is six categories, not the seven in section 4.2.
 
 **The brief is rule of law.** Where a preference of ours collides with it, the brief wins and the
 collision is recorded here rather than quietly resolved. Three collisions were found at design time;
@@ -10,7 +12,7 @@ all three are named in §2 and reconciled in the design.
 
 ## 1. What the brief requires (the contract)
 
-Restated from the assessment document, because everything below is measured against it.
+Restated from the brief, because everything below is measured against it.
 
 | # | Requirement | Where it lands |
 |---|---|---|
@@ -25,13 +27,9 @@ Restated from the assessment document, because everything below is measured agai
 | R9 | Out of scope: auth, deployment/Docker, coverage targets, telemetry, multi-user | not built |
 | R10 | Keep it small; don't gold-plate; single-user local tool is "exactly right" | scope discipline, §2.3 |
 
-Deliverables: repo with ≥3 meaningful commits · **RATIONALE.md answering five questions (40% of the
-grade)** · README ~1 page incl. an Airtable-modelling note and one n8n/Zapier automation note and one
+Deliverables: repo with ≥3 meaningful commits · **RATIONALE.md answering five questions** · README ~1 page incl. an Airtable-modelling note and one n8n/Zapier automation note and one
 example of overriding the model · `prompts/` folder · `.env.example` · Loom ≤3 min showing one
 failure case handled.
-
-Rubric weights: engineering reasoning **40%** · LLM integration 20% · product judgment & scoping 15% ·
-build quality 15% · communication & reproducibility 10%.
 
 ---
 
@@ -72,9 +70,9 @@ scope.
 
 ### 2.3 "Multiple instances spun up as needed / workers at a threshold" vs. R9 + R10
 
-R9 rules out multi-user and deployment; R10 says don't gold-plate; the rubric scores "sensible MVP cut"
-at 15%. Implementing a worker pool or instance orchestration would therefore *lose* marks — while the
-thinking behind it is exactly what rationale question (e) asks for ("what breaks at 10,000 messages a
+R9 rules out multi-user and deployment and R10 says don't gold-plate, so a worker pool or instance
+orchestration would be building the wrong thing — while the thinking behind it is exactly what rationale
+question (e) asks for ("what breaks at 10,000 messages a
 day"). The split:
 
 **Built now** (small, and genuinely needed for a 13-item queue):
@@ -98,7 +96,7 @@ pre-classification to cut model calls, provider rate-limit budgeting.
 | Cheap models are safe by default | **NO — endpoint-level trap confirmed.** `qwen/qwen3-8b` reports `response_format: true` and `structured_outputs: false`: it looks like a sensible cheap choice and would return prose with a 200. Support is a property of the *endpoint*, not the model, so `provider: { require_parameters: true }` is mandatory alongside a capability-checked registry. |
 | "Least cost" discriminates between models at this volume | **NOT AT 13 MESSAGES.** Whole-queue cost: 8B ≈ **$0.0003**, llama-3.3-70b ≈ $0.0008, claude-haiku-4.5 ≈ $0.011. The brief itself says "cost is pennies." Cost only becomes a real criterion at scale — at 10k messages/day: 8B ≈ $0.22/day, 70B ≈ $0.63/day, haiku-4.5 ≈ $8.46/day. So the honest reading of "accurate triage for least cost" is: **choose on accuracy at this volume, and show the cost curve for scale.** Notable: `llama-3.3-70b-instruct` is $0.10/$0.32 — cheaper than `gpt-4o-mini` and close to `gpt-4.1-nano`. |
 | An 8B triages this data *accurately* | **UNVERIFIED — needs measurement, not assertion.** §7 makes it a measured step. This also produces rationale answer (c) honestly. |
-| SQLite is available without an install risk | **YES, natively.** `node:sqlite` (`DatabaseSync`) works on the installed Node v24.14.0 with zero dependencies and no native compile. It prints an `ExperimentalWarning`. `better-sqlite3` is the mature alternative but is a native module whose install can fail without build tools — a real risk to "easy to run from scratch" (10% of the grade). Open decision, §8. |
+| SQLite is available without an install risk | **YES, natively.** `node:sqlite` (`DatabaseSync`) works on the installed Node v24.14.0 with zero dependencies and no native compile. It prints an `ExperimentalWarning`. `better-sqlite3` is the mature alternative but is a native module whose install can fail without build tools — a real risk to anyone running this from scratch on a machine that is not ours. Open decision, §8. |
 | North Star is the right source for the model connection | **PARTLY.** Its transport is hardwired to classify/compose and its proxy lane returns a fake `offline` failure. proof-of-work's `openrouter/` layer is the better lift (generic `callJson<T>`, capability registry, injectable fetch, surfaced 400 bodies). North Star wins on the *classification* pattern: its rule floor, `IntentProvider` seam, confidence threshold, and re-validate-everything discipline. Take both, from the right places (§6). |
 | North Star's schema guard can be imported as-is | **NO.** Its `tests/schema.test.ts` fails any string leaf without an enum and bans fields named `summary` — but R2 *requires* a model-authored summary and next action. The guard is adapted, not adopted: closed enums for category and priority, bounded-and-validated prose for the two text fields. |
 
@@ -173,12 +171,17 @@ checkable in here."
 
 This replaced an earlier design that parked malformed items in a separate bucket. One list with
 `unreadable` as another tag is the right shape for an Airtable-idiom grid (§8); a parking bucket would have
-been a second surface for the reviewer to go find.
+been a second surface for the reader to go find.
 
 ### 4.2 Taxonomy — `src/triage/types.ts`
 
 Seven categories, closed: `prospect` · `existing_client` · `vendor` · `partner_referral` · `noise` ·
 `unknown` · `unreadable`.
+
+**Superseded, and this section is kept as the design-time record.** The set grew to nine when the
+never-firing guards made `fraud_risk` and `compliance` reachable, then settled at **six**: `vendor`,
+`automated` and `unreadable` collapsed into `junk`, and `partner_referral` folded into `prospect`. Both
+moves and the reasoning for them are recorded further down. The shipped set is `src/triage/types.ts`.
 
 `partner_referral` exists because `inb-007` (an RIA proposing a referral arrangement) is neither a
 prospect nor a vendor, and collapsing it into either loses the routing decision that matters.
@@ -191,10 +194,10 @@ prospect nor a vendor, and collapsing it into either loses the routing decision 
 | `unreadable` | nothing checkable in the message at all | `inb-010` is a single period; `inb-011` is truncated MIME garbage | discard, or check the intake form |
 
 One of the two has to exist regardless: a queue where everything is confidently categorised is a flattery
-generator, and a reviewer can tell.
+generator, and a reader can tell.
 
 **`unreadable`, not `error`**. `error` as a *category* would have sat beside API failures that are
-colloquially errors but are a *status*, so a reviewer scanning `ERROR` chips could read "the app broke"
+colloquially errors but are a *status*, so someone scanning `ERROR` chips could read "the app broke"
 rather than "this message is garbage." `unreadable` removes the collision outright and is more precise than
 `malformed`: it covers an empty body as naturally as a corrupted one, where "malformed" implies a structural
 violation that `"."` does not have. It also pairs cleanly — `unknown` is *we can't tell what they want*,
@@ -254,8 +257,9 @@ cap and retries the *same* model rather than burning a chain slot.
 Joel: *"I dont want it to ship keyless, it should be key configured ready to go. changing the key needs to
 be a config change documented in the readme."* Keyless mode is **cut**, and this is the same rule as D-010
 applied one layer up: a degraded mode is a cushion for a stated requirement, and the requirement here is
-R2 + R8 — an LLM call per item, with the key server-side. A reviewer who clones, runs, sees rule-based
-output and forms an impression has under-read the 20% of the rubric covering LLM integration.
+R2 + R8 — an LLM call per item, with the key server-side. A keyless mode that quietly serves rule-based
+output does not meet that requirement, it only looks like it does, and looking like it is the worse
+failure: the operator cannot tell which layer produced the row they are acting on.
 
 **What "server-side" means here, and it is already the design.** The key is read from the environment by
 the Node process (`loadEnv(mode, cwd, '')` — empty prefix, so it never reaches `define`), used to build the
@@ -265,8 +269,7 @@ in the README. No `VITE_`-prefixed variable ever holds a credential.
 **What cannot be done: shipping the key's value.** A key committed to the repo is a secret in git — the
 brief's own deliverable list says "never commit secrets", provider keys in public repos are scraped and
 drained within minutes, and on an *AI Product Engineer* application a committed credential is the one
-defect a reviewer is guaranteed to notice. So the reviewer supplies the key; the app supplies everything
-else. Behaviour with no key set is now a **refusal with a legible message**, not a silent downgrade:
+defect nobody misses. So whoever runs it supplies the key; the app supplies everything else. Behaviour with no key set is now a **refusal with a legible message**, not a silent downgrade:
 
 ```
 $ pnpm dev
@@ -300,7 +303,7 @@ D-011: an API error fails loudly and the item queues itself to be categorised wh
 
 Joel: *"if the fallback fails we need to make an error surface."* A row quietly sitting in `pending_retry` is
 not loud enough when the model chain has been exhausted — that is the case where a human genuinely has to
-decide something, so it gets a surface of its own rather than a status a reviewer might scroll past.
+decide something, so it gets a surface of its own rather than a status someone might scroll past.
 
 Three levels, aggregate down to detail:
 
@@ -446,7 +449,7 @@ actually wired**, plus `SlackNotifier` as a documented stub. Joel's reasoning �
 without building the thing needed" — and the distinction that keeps it honest is that the interface has a
 real implementation running through it. An interface with zero implementations is a guess; one with a
 working implementation is a seam. The stub's own comment and the README both have to say *seam, by
-choice*, or a reviewer reads it as an unfinished feature.
+choice*, or a reader takes it for an unfinished feature.
 
 The Slack trigger→action pair (a `high` verdict written → post to a channel) doubles as the n8n/Zapier
 automation the README deliverable asks for. Airtable gets the same treatment one layer down: the `Store`
@@ -472,7 +475,7 @@ Every browser-only variant fails R8 — including WASM SQLite, which additionall
 `file://` in Chrome. The vendor gate for browser-direct calls is a flag named `dangerouslyAllowBrowser`,
 which is its own argument.
 
-What *can* be done for a reviewer with no local Node: commit a `.devcontainer/devcontainer.json`, so the
+What *can* be done for someone with no local Node: commit a `.devcontainer/devcontainer.json`, so the
 repo opens in GitHub Codespaces with nothing but a browser. A few lines of JSON, the key still
 server-side, and not deployment. This is the answer to "can it run without Node" — not by removing the
 runtime, but by not requiring it to be *theirs*.
@@ -498,7 +501,7 @@ claims were adversarially refuted, so the weak parts are labelled as weak:
 - **Field order is load-bearing.** Generation is autoregressive, so the schema emits `summary` and the
   evidence fields **before** the `category` and `priority` enums. What is generated first conditions what
   follows; putting the enums first would have the label decided before the reasoning that justifies it.
-- **Sized for an 8B.** Prompt budget goes to explicit taxonomy definitions and a decision rubric, with
+- **Sized for an 8B.** Prompt budget goes to explicit taxonomy definitions and explicit decision criteria, with
   enum-constrained decoding. No chain-of-thought (net negative below ~10B) and no self-consistency
   (measured to hurt Llama-3-8B on hard items). Few-shot only if it earns its place, and then
   label-balanced, k=4–8, order pinned — example ordering alone can swing accuracy ~30 points.
@@ -540,12 +543,12 @@ Reported per arm: per-field agreement with Joel's labels, rule/model agreement, 
 
 Arm 3 exists to test Claude's own claim on this data rather than to ship. If agreement rises from arm 2 to
 arm 3 while accuracy does not, that is capitulation — measured here, with this model, on these messages —
-which converts a cited paper into an observation about the actual submission. That is the strongest
-available material for rationale answers (b) and (c), and (b)+(c) sit inside the 40% line.
+which converts a cited paper into an observation about this system, on this data. That is the strongest
+available material for rationale answers (b) and (c).
 
 **Joel labels only the rows where arms disagree**, not all 13 — the brief never asks for a labelled set, so
 a full gold standard would be gold-plating. The labels that do get written are his: a label written by the
-thing being graded proves nothing.
+system under test proves nothing.
 
 **Scope guard**: one file, no framework, no fixtures beyond the 13 messages and the disagreement labels. If
 it grows past a single file it has stopped being the right size.
@@ -581,7 +584,7 @@ Each row is the settled call. The reasoning behind it is in the section that arg
 | D-008 | Airtable-idiom grid: tag-sorted, filterable, inline expansion |
 | D-010 | One store, no fallback — state the requirement, don't cushion it |
 | D-011 | Unreadable → a real row; a failed call → queued, no verdict asserted |
-| D-012 | `unknown` = ambiguous intent · `unreadable` = nothing checkable |
+| D-012 | `unknown` = ambiguous intent · nothing checkable in the body is `junk`, reason on the row |
 | D-013 | Queue is deferred work: credential failures queue too · our own model fallthrough on unparseable · exhausted chain gets an error surface |
 | D-014 | No keyless mode — ships key-configured; no key means refuse to start, never degrade |
 | D-015 | Skipped — OpenRouter only; the brief does not require Claude |

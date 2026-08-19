@@ -7,6 +7,8 @@ rule layer that runs alongside it and can override the result.
 Requires **Node 22.13.0 or newer** (it uses the built-in `node:sqlite`) and pnpm. Developed on Node 24.19.0.
 It is not deployable, has no auth and is not multi-user.
 
+A three-minute walkthrough of it running, and why it is built this way: https://youtu.be/6F6Z33EAOms
+
 ## Quick start
 
 ```bash
