@@ -598,9 +598,39 @@ would hit a wall (a papercut, and the walkthrough recording covers it).
 
 ---
 
-## 9. Deliberately not built
+## 10. Deliberately not built
 
 Auth · deployment/Docker · telemetry · multi-user · worker threads · instance orchestration · an
 Airtable adapter · a Slack client · retry beyond one honest attempt · embeddings. Each is either
 explicitly out of scope per R9, or scope discipline per R10, and each is named in RATIONALE.md as a cut
 rather than an omission.
+
+---
+
+## 11. What shipped, and what it cost
+
+Written after the build, unlike the rest of this document.
+
+**Six categories**, cut where the product is cut: `prospect`, `existing_client`, `fraud_risk`, `compliance`,
+`unknown`, `junk`. Anything off the path of a new or an existing client is one bucket. `unknown` stays its
+own label because `junk` means we know it is off that path and `unknown` means we cannot tell, so it floors
+at medium rather than low — a vague message may be the lead the tool exists to catch.
+
+Categories and priority modifiers are **rows** in `src/triage/types.ts` and `src/triage/rules.ts`, not `if`
+branches. `Record<Category, ...>` refuses to compile until a new label declares both its evidence and its
+priority floor, which is what makes "the taxonomy could double" a checkable claim rather than a hopeful one.
+The deterministic layer scores every message from 23 signals and `src/triage/reconcile.ts` merges its verdict
+with the model's. The model never receives that verdict, only the signal readings.
+
+**SQLite over Airtable and over a JSON file.** `node:sqlite` is built in, so the dependency count stays at
+what Vite and React need, and a JSON file would be rewritten whole on every result.
+
+**OpenRouter over a direct provider call**, which makes the model a one-line config change and made it
+possible to measure four models against each other on the same queue.
+
+**`llama-3.3-70b` over the cheaper 8B.** Both scored well on the supplied thirteen, which is exactly why the
+supplied thirteen could not decide it. Against sixteen held-out messages whose phrasings the patterns had
+never seen, the 8B got half the categories right and the 70B three quarters, for $1.79 against $1.18 per ten
+thousand messages a day. `anthropic/claude-haiku-4.5` scored highest of the four measured, at roughly fifteen
+times the 70B's cost for one extra correct row out of twelve, so it stays available through `TRIAGE_MODEL`
+rather than shipping as the default. Full table: `eval/README.md`.

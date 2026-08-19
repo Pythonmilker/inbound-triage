@@ -64,31 +64,22 @@ Every test injects its own network function, so `pnpm verify` runs with no key s
 ## Design choices
 
 Six categories, cut where the product is cut: `prospect`, `existing_client`, `fraud_risk`, `compliance`,
-`unknown`, `junk`. Anything off the path of a new or existing client is one bucket. `unknown` is separate
-from `junk` because junk means we know it is off that path, and unknown means we cannot tell, so it floors at
-medium rather than low.
+`unknown`, `junk`. Anything off the path of a new or an existing client is one bucket, and `unknown` stays
+separate because `junk` means we know it is off that path while `unknown` means we cannot tell.
 
-Categories and priority rules are rows in `src/triage/types.ts` and `src/triage/rules.ts`, not `if` branches.
-`Record<Category, …>` refuses to compile until a new label declares both its evidence and its priority floor.
+Categories and priority modifiers are rows in `src/triage/types.ts` and `src/triage/rules.ts`, not `if`
+branches. A deterministic layer scores every message from 23 signals and `src/triage/reconcile.ts` merges its
+verdict with the model's, but the model never sees that verdict, only the readings.
 
-A deterministic rule layer scores every message from 23 signals, and `src/triage/reconcile.ts` merges its
-verdict with the model's. The rule layer's verdict does not reach the prompt: the model gets the signal
-readings and no conclusion, because an injected conclusion measurably drags a small model onto it.
-[RATIONALE.md](RATIONALE.md) covers the taxonomy, the merge rules and the failure handling.
+The three tradeoffs worth naming: SQLite over Airtable and over JSON, because `node:sqlite` is built in and a
+JSON file would be rewritten whole on every result. OpenRouter over a direct provider call, which made the
+model a one-line change and let four of them be measured on the same queue. And `llama-3.3-70b` over the
+cheaper 8B, which got half the categories right against sixteen held-out messages where the 70B got three
+quarters, for $1.79 against $1.18 per ten thousand messages a day.
 
-### Tradeoffs
+Each of these at length, with the measurements: [docs/DESIGN.md](docs/DESIGN.md) section 11 and
+[RATIONALE.md](RATIONALE.md).
 
-SQLite over Airtable and over a JSON file. `node:sqlite` is built in, so the dependency count stays at what
-Vite and React need, and a JSON file would have to be rewritten whole on every result.
-
-OpenRouter over a direct Anthropic call, to make the model a one-line config change and to measure four
-models against each other on the same queue.
-
-`llama-3.3-70b` over the cheaper 8B. Both scored well on the supplied thirteen. Against sixteen held-out
-messages the patterns had not seen, the 8B got half the categories right and the 70B three quarters, for
-$1.79 against $1.18 per ten thousand messages a day. Claude Haiku 4.5 scored highest of the four tested at
-roughly fifteen times the 70B's cost, for one extra correct row out of twelve, so it stays available as
-`TRIAGE_MODEL` rather than shipping.
 
 ## Airtable model
 
