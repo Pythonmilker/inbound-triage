@@ -9,6 +9,9 @@ It is not deployable, has no auth and is not multi-user.
 
 A three-minute walkthrough of it running, and why it is built this way: https://youtu.be/6F6Z33EAOms
 
+The architecture as an interactive map, drillable from the top-level view down to single modules, with each
+box linking the design section that decided it: https://pythonmilker.github.io/inbound-triage/
+
 ## Quick start
 
 ```bash
@@ -150,5 +153,5 @@ src/store/      Store interface and the SQLite implementation
 src/ui/         React grid, filter bar, run summary
 prompts/        the system prompt as the code emits it, plus the approach
 eval/           held-out set, hand labels, generated reports
-docs/           design written before the build, and an architecture map
+docs/           design written before the build, and the architecture map served above
 ```
