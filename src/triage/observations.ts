@@ -375,10 +375,15 @@ const RECRUITING: readonly RegExp[] = [
  * evidence, and separating it from the partner idiom is the whole reason the old single `referral_language`
  * signal was split.
  *
- * It was landing "Dana Whitfield, a client of yours, suggested I reach out" on `partner_referral` - a peer
- * firm proposing an arrangement - which routes a warm, client-referred prospect to partnerships. The old
- * code only got that row right by accident: both signals fired once each and `prospect` happened to be
- * declared first in the record, so an arbitrary list order was producing the correct answer.
+ * It was landing "Dana Whitfield, a client of yours, suggested I reach out" on the peer-partnership label,
+ * which routed a warm, client-referred prospect to partnerships. The old code only got that row right by
+ * accident: both signals fired once each and `prospect` happened to be declared first in the record, so an
+ * arbitrary list order was producing the correct answer.
+ *
+ * Those two labels have since merged, so that particular misrouting is no longer possible. The signals stay
+ * split anyway: what the text CONTAINS is different in the two cases, the model uses the difference to write
+ * a useful next action, and merging observations to match a merged category would discard information for
+ * nothing.
  */
 const CLIENT_REFERRAL_NAMED: readonly RegExp[] = [
   /\ba\s+client\s+of\s+yours\b/i,

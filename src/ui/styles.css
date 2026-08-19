@@ -339,12 +339,6 @@ button:disabled {
   --chip-line: var(--blue);
 }
 
-.cat-partner_referral {
-  --chip-fg: var(--teal);
-  --chip-bg: var(--teal-bg);
-  --chip-line: var(--teal);
-}
-
 /* The two that carry a clock. Loud on purpose: a wire-change request read as routine is the expensive
    failure, and a regulator's letter has a statutory deadline whether or not anyone notices it. */
 .cat-fraud_risk {

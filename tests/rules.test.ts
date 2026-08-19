@@ -202,7 +202,7 @@ const CORPUS: readonly Phrasing[] = [
     subject: 'Possible referral partnership',
     body: 'I run a small RIA and occasionally have clients whose needs fall outside our scope. Could we explore a referral arrangement?',
     from_org: 'Cedar Ridge Wealth',
-    category: 'partner_referral',
+    category: 'prospect',
     priority: 'medium',
   },
   {
@@ -210,14 +210,14 @@ const CORPUS: readonly Phrasing[] = [
     subject: 'Partnership',
     body: 'Interested in a referral arrangement?',
     from_org: 'Cedar Ridge Wealth',
-    category: 'partner_referral',
+    category: 'prospect',
     priority: 'medium',
   },
   {
     why: 'shared book of clients, without the word referral',
     body: "We have a few mutual clients and I'd like to discuss a partnership before year end.",
     from_org: 'Harbor Point Advisors',
-    category: 'partner_referral',
+    category: 'prospect',
     priority: 'medium',
   },
   {

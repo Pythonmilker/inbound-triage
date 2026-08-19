@@ -1,7 +1,7 @@
 /**
  * The taxonomy, as data.
  *
- * SEVEN CATEGORIES, and the shape of them is a product decision rather than a modelling one. This tool
+ * SIX CATEGORIES, and the shape of them is a product decision rather than a modelling one. This tool
  * exists to catch leads and to rank the clients the firm already has, so the taxonomy is cut where that
  * purpose cuts: everything on the path of a new or an existing client gets its own label, everything off
  * that path is `junk`.
@@ -12,6 +12,12 @@
  * What was worth keeping from the old `unreadable` is not its label but its `reason`, which survives on the
  * row: "the body is transport damage" tells an operator the intake path may be broken, and that is
  * actionable in a way that a separate category never was.
+ *
+ * `partner_referral` folded into `prospect` for the same reason: a peer proposing mutual referrals is on the
+ * path of new business, and whether they arrive as a lead or as a channel does not change that someone in
+ * business development has to answer them. The *routing* line still names the difference, and the model's
+ * per-message `next_action` says it concretely — which is where a distinction belongs once it stops
+ * deciding anything structural.
  *
  * `unknown` deliberately did NOT collapse into `junk`. Junk means we know it is off the path; unknown means
  * we cannot tell, and a vague message from a real person may well be the lead. Binning it would defeat the
@@ -32,8 +38,9 @@ export const CATEGORIES = [
     id: 'prospect',
     label: 'Prospect',
     definition:
-      'Someone who is not yet a client and is asking about becoming one, or describing a need the firm could serve.',
-    routing: 'Route to the advisory team for qualification.',
+      'Anyone not yet a client who could bring business to the firm: asking about becoming a client, describing a need the firm could serve, or a peer proposing a referral arrangement.',
+    routing:
+      'Route to the advisory team for qualification — or to whoever owns partnerships if they are proposing an arrangement rather than asking for advice.',
   },
   {
     id: 'existing_client',
@@ -41,13 +48,6 @@ export const CATEGORIES = [
     definition:
       'Someone who states or clearly implies they are already a client, asking for service on their own account.',
     routing: 'Route to the servicing advisor who owns the relationship.',
-  },
-  {
-    id: 'partner_referral',
-    label: 'Partner / referral',
-    definition:
-      'A peer firm or professional proposing a referral or partnership arrangement, rather than buying or selling a product.',
-    routing: 'Route to partnerships — this is a source of clients, not a client.',
   },
   {
     id: 'fraud_risk',

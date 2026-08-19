@@ -324,8 +324,8 @@ from the same rows, so a category cannot exist in the data and be un-selectable 
 versa — a test pins that.
 
 **This was exercised in both directions rather than asserted.** The taxonomy grew from seven to nine when
-the never-firing guards made `fraud_risk` and `compliance` reachable, then shrank to seven again when
-`vendor`, `automated` and `unreadable` collapsed into `junk`. Growing cost two rows in `CATEGORIES`, two in
+the never-firing guards made `fraud_risk` and `compliance` reachable, then shrank to six when
+`vendor`, `automated` and `unreadable` collapsed into `junk` and `partner_referral` folded into `prospect`. Growing cost two rows in `CATEGORIES`, two in
 `CATEGORY_EVIDENCE`, two in `CATEGORY_PRIORITY_FLOOR` and four corpus rows. Shrinking cost less: three
 evidence lists merged into one, and the modifier exception lists got *simpler* — several rows had named
 three excluded categories plus `vendor` a fourth time, and now name one. No branch changed either way. The
@@ -339,6 +339,12 @@ corrupted body — but none of them changes what an operator does, and a taxonom
 looks at spends its discrimination in the wrong place. What was worth keeping from `unreadable` is not the
 label but the **`reason`** on the row: *"the body is transport damage"* tells an operator the intake path
 may be broken, which is actionable in a way a separate category never was.
+
+`partner_referral` folded into `prospect` rather than into `junk`: a peer proposing mutual referrals is on
+the path of new business, and whether they arrive as a lead or as a channel does not change that business
+development has to answer them. The routing line still names the difference and the model's per-message
+`next_action` says it concretely — which is where a distinction belongs once it stops deciding anything
+structural. The two referral *signals* stay split, because what the text contains genuinely differs.
 
 `unknown` deliberately did **not** collapse into `junk`. Junk means we know the message is off the path;
 unknown means we cannot tell, and a vague message from a real person may be the lead. Binning it would

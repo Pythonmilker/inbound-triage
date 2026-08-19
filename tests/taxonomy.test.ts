@@ -9,6 +9,8 @@
  * is built to make cheap.
  */
 
+import { readFileSync } from 'node:fs';
+
 import { describe, expect, it } from 'vitest';
 
 import { observe } from '../src/triage/observations.js';
@@ -48,12 +50,13 @@ describe('the enum is generated from the rows', () => {
   });
 
   it('is cut where the product is cut, not where the data is', () => {
-    // Seven categories, and the shape is a product decision. Everything on the path of a new or existing
+    // Six categories, and the shape is a product decision. Everything on the path of a new or existing
     // client gets its own label; everything off that path is one bucket. `vendor`, `automated` and
     // `unreadable` were three labels that all meant "delete this", and splitting them spent discrimination
-    // where nobody was looking.
-    expect(CATEGORY_IDS).toHaveLength(7);
-    for (const gone of ['vendor', 'automated', 'unreadable', 'noise']) {
+    // where nobody was looking. `partner_referral` folded the other way, into `prospect`, because a peer
+    // proposing mutual referrals is on the path of new business either way.
+    expect(CATEGORY_IDS).toHaveLength(6);
+    for (const gone of ['vendor', 'automated', 'unreadable', 'noise', 'partner_referral']) {
       expect(CATEGORY_IDS as readonly string[]).not.toContain(gone);
     }
 
@@ -61,6 +64,10 @@ describe('the enum is generated from the rows', () => {
     // cannot tell, and a vague message from a real person may be the lead this whole tool exists to catch.
     expect(CATEGORY_IDS).toContain('unknown');
     expect(CATEGORY_IDS).toContain('junk');
+
+    // Every category still needs a chip class, or it renders unstyled. This caught two missing ones.
+    const css = readFileSync(new URL('../src/ui/styles.css', import.meta.url), 'utf8');
+    for (const id of CATEGORY_IDS) expect(css).toContain(`.cat-${id} {`);
   });
 
   it('keeps junk reachable by the rule layer with nothing readable in the body', () => {

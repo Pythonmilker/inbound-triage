@@ -49,6 +49,13 @@ import {
  *
  * One row is empty on purpose: `unknown` is what is left when nothing matched.
  *
+ * `client_referral_named` and `partner_language` both feed `prospect` now, and they stay two signals rather
+ * than one. The categories merged; the observations should not. "A client of yours suggested I reach out"
+ * and "let us set up a referral arrangement" are different things for the text to contain, the model uses
+ * that difference to write a useful next action, and collapsing them would throw the information away to buy
+ * nothing. Their split was originally motivated by a misrouting that this merge makes impossible — that
+ * motivation is gone, and the weaker one is enough.
+ *
  * `junk` carries the evidence that used to be split across three labels — a vendor selling, a recruiter, a
  * machine sending, someone billing us. They were collapsed because none of those distinctions changes what
  * anyone does with the row, and a taxonomy that splits hairs the user does not care about spends its
@@ -65,6 +72,7 @@ const CATEGORY_EVIDENCE: Record<Category, readonly Evidence[]> = {
     { signal: 'liquidity_event', weight: 5 },
     { signal: 'money_inbound', weight: 4 },
     { signal: 'client_referral_named', weight: 3 },
+    { signal: 'partner_language', weight: 3 },
     { signal: 'prospect_language', weight: 2 },
   ],
   existing_client: [
@@ -80,7 +88,6 @@ const CATEGORY_EVIDENCE: Record<Category, readonly Evidence[]> = {
     // an unidentified sender at high. Anger says nothing about who someone is. It stays a priority
     // modifier for people we have independently established are clients, and no part of the category read.
   ],
-  partner_referral: [{ signal: 'partner_language', weight: 3 }],
   fraud_risk: [{ signal: 'wire_change', weight: 5 }],
   compliance: [{ signal: 'regulatory_notice', weight: 5 }],
   unknown: [],
@@ -119,7 +126,6 @@ const CATEGORY_PRIORITY_FLOOR: Record<Category, Priority> = {
   compliance: 'high',
   existing_client: 'medium',
   prospect: 'medium',
-  partner_referral: 'medium',
   unknown: 'low',
   junk: 'low',
 };
