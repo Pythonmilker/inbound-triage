@@ -87,10 +87,12 @@ const CORPUS: readonly Phrasing[] = [
     subject: 'Just exploring options',
     body: 'No rush at all — I am early in thinking about whether to work with an advisor and just gathering information.',
     category: 'prospect',
-    // Low, and it was medium before `no_urgency` could subtract. A sender who writes "no rush at all" has
-    // told us something, and scoring that the same as saying nothing throws the information away. Still a
-    // real prospect - the category is unchanged, only the urgency moved.
-    priority: 'low',
+    // Medium. `no_urgency` fires here and the sender genuinely has told us something - but a category's
+    // floor is a floor, and a prospect is never below medium however relaxed they are. This row was `low`
+    // for one commit, and a hand-labelled eval caught it: the label said medium, with the reason "prospect
+    // is always medium priority at least". The modifier can now cancel a raise and not subtract through the
+    // floor, which is the behaviour the name always claimed.
+    priority: 'medium',
   },
   {
     why: 'prospect with a real deadline',
@@ -249,13 +251,13 @@ const CORPUS: readonly Phrasing[] = [
     body: 'Hi — just following up on our conversation. Let me know the next step whenever you get a chance. Thanks!',
     from_org: '(unknown)',
     category: 'unknown',
-    priority: 'low',
+    priority: 'medium',
   },
   {
     why: 'a request whose subject matter is missing entirely',
     body: 'Can you send over that thing we discussed?',
     category: 'unknown',
-    priority: 'low',
+    priority: 'medium',
   },
   {
     why: 'undeterminable intent with a stated deadline',
@@ -365,6 +367,19 @@ function isPresent(m: InboundMessage, id: SignalId): boolean {
   return reading(observe(m), id).present;
 }
 
+/**
+ * The floors, restated. Deliberately NOT imported from rules.ts: a test that reads the value it is
+ * checking cannot catch the value being wrong. If these drift apart the test fails, which is the point.
+ */
+const CATEGORY_PRIORITY_FLOOR_FOR_TEST: Record<Category, Priority> = {
+  prospect: 'medium',
+  existing_client: 'medium',
+  fraud_risk: 'high',
+  compliance: 'high',
+  unknown: 'medium',
+  junk: 'low',
+};
+
 describe('the corpus itself', () => {
   it('is large enough, and covers every category', () => {
     // Below about 25 rows a corpus stops being evidence and becomes a handful of examples. Every category
@@ -423,12 +438,19 @@ describe('no signals means unknown, not the nearest neighbour', () => {
     // sender named no organisation says nothing about what they want. Naming one silences it, which is the
     // case where genuinely nothing fires.
     expect(observe(m).filter((s) => s.present).map((s) => s.id)).toEqual(['org_is_sentinel']);
-    expect(verdictFor(m)).toEqual({ category: 'unknown', priority: 'low', confidence: 0, evidenceWeight: 0 });
+    // Medium, not low: not knowing what a real person wants is a reason for someone to look, not a
+    // reason to bury it. `junk` remains the low bucket for mail we HAVE placed.
+    expect(verdictFor(m)).toEqual({
+      category: 'unknown',
+      priority: 'medium',
+      confidence: 0,
+      evidenceWeight: 0,
+    });
 
     const named: InboundMessage = { ...m, from_org: 'Ridgeline Co' };
 
     expect(observe(named).filter((s) => s.present)).toEqual([]);
-    expect(verdictFor(named)).toEqual({ category: 'unknown', priority: 'low', confidence: 0, evidenceWeight: 0 });
+    expect(verdictFor(named)).toEqual({ category: 'unknown', priority: 'medium', confidence: 0, evidenceWeight: 0 });
   });
 
   it('scores confidence on evidential weight and on the margin over the runner-up', () => {
@@ -628,7 +650,7 @@ describe('the planted edge cases in the supplied queue', () => {
   it('leaves inb-009 as unknown at zero rather than guessing', () => {
     const m = supplied('inb-009');
 
-    expect(applyRules(m, observe(m))).toEqual({ category: 'unknown', priority: 'low', confidence: 0, evidenceWeight: 0 });
+    expect(applyRules(m, observe(m))).toEqual({ category: 'unknown', priority: 'medium', confidence: 0, evidenceWeight: 0 });
   });
 
   it('finds nothing readable in exactly two of the thirteen', () => {
@@ -641,5 +663,49 @@ describe('the planted edge cases in the supplied queue', () => {
     expect(nothingReadable.map((m) => m.id)).toEqual(['inb-010', 'inb-011']);
     // And junk is the wider bucket: two unreadable plus the pitch, the recruiter and the digest.
     expect(junk.map((m) => m.id)).toEqual(['inb-003', 'inb-004', 'inb-008', 'inb-010', 'inb-011']);
+  });
+});
+
+describe('a category floor is a floor', () => {
+  /**
+   * `CATEGORY_PRIORITY_FLOOR` was clamped to `low` rather than to the category's own minimum, so
+   * `no_urgency` at -1 subtracted straight through it and a relaxed prospect came out `low`. A hand-labelled
+   * eval row caught it. The name was claiming a guarantee the arithmetic did not provide.
+   */
+  it('lets no_urgency cancel a raise without subtracting below the category minimum', () => {
+    const relaxed = adHoc('No rush at all — I am looking for a financial advisor and wondering about fees.');
+    const relaxedWithDeadline = adHoc(
+      'I am looking for a financial advisor. No rush at all, though I do need an answer by Thursday.',
+    );
+
+    expect(isPresent(relaxed, 'no_urgency')).toBe(true);
+    expect(isPresent(relaxed, 'prospect_language')).toBe(true);
+
+    // Cancelled a raise, did not subtract through the floor.
+    expect(verdictFor(relaxed)).toMatchObject({ category: 'prospect', priority: 'medium' });
+
+    // Both fire: +2 for the deadline, -1 for the disclaimer, so it lands one step above the floor rather
+    // than two. The modifier is still doing real work - it is only prevented from going below.
+    expect(isPresent(relaxedWithDeadline, 'no_urgency')).toBe(true);
+    expect(isPresent(relaxedWithDeadline, 'explicit_deadline')).toBe(true);
+    expect(verdictFor(relaxedWithDeadline)).toMatchObject({ priority: 'high' });
+  });
+
+  it('never returns a priority below the winning category’s floor, for any signal combination', () => {
+    // Exhaustive over the negative modifiers rather than by example: whatever combination fires, the
+    // result cannot sit below the floor of whichever category won.
+    const negatives = [
+      'No rush at all, whenever you get a chance, take your time.',
+      'Our invoice is attached and payment is due. No hurry.',
+      'At your convenience — no particular deadline. Please remit payment.',
+    ];
+
+    for (const body of negatives) {
+      const m = adHoc(body);
+      const verdict = verdictFor(m);
+      const floor = CATEGORY_PRIORITY_FLOOR_FOR_TEST[verdict.category];
+
+      expect(PRIORITY_RANK[verdict.priority]).toBeGreaterThanOrEqual(PRIORITY_RANK[floor]);
+    }
   });
 });

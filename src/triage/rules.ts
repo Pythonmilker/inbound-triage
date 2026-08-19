@@ -126,7 +126,11 @@ const CATEGORY_PRIORITY_FLOOR: Record<Category, Priority> = {
   compliance: 'high',
   existing_client: 'medium',
   prospect: 'medium',
-  unknown: 'low',
+  // Medium, not low. A message from a real person whose intent cannot be determined is a RISK, not a
+  // triviality: at `low` an ambiguous note from a client sank to the bottom of the queue, which is the
+  // opposite of what not knowing should do. Recognised dross is still `junk` at low, so this raises only
+  // the rows nobody has been able to place.
+  unknown: 'medium',
   junk: 'low',
 };
 
@@ -231,8 +235,8 @@ function weightPresent(signals: Signal[], evidence: readonly Evidence[]): number
 const MIN_RANK = Math.min(...Object.values(PRIORITY_RANK));
 const MAX_RANK = Math.max(...Object.values(PRIORITY_RANK));
 
-function rankToPriority(rank: number): Priority {
-  const clamped = Math.max(MIN_RANK, Math.min(MAX_RANK, rank));
+function rankToPriority(rank: number, lowerBound = MIN_RANK): Priority {
+  const clamped = Math.max(lowerBound, Math.min(MAX_RANK, rank));
   const found = (Object.keys(PRIORITY_RANK) as Priority[]).find((p) => PRIORITY_RANK[p] === clamped);
   // Unreachable: the clamp guarantees a rank every Priority maps onto. Thrown rather than defaulted so a
   // future rank that is not a whole number fails loudly instead of silently becoming `low`.
@@ -241,7 +245,20 @@ function rankToPriority(rank: number): Priority {
 }
 
 function priorityFor(category: Category, signals: Signal[]): Priority {
-  let rank = PRIORITY_RANK[CATEGORY_PRIORITY_FLOOR[category]];
+  /*
+   * The category's floor is a FLOOR: modifiers may raise it and may cancel a raise, and may never take a
+   * category below its own minimum.
+   *
+   * It did not used to be. The sum was clamped to `low`, so `no_urgency` at -1 pulled a prospect from
+   * medium down to low — and a hand-labelled eval row caught it: a prospect writing "no rush at all" is
+   * still a prospect, and Joel's rule is that a prospect is never below medium. Calling something a floor
+   * while letting a modifier subtract through it is the name lying about the behaviour.
+   *
+   * `no_urgency` still does real work. It cancels a raise, which is the case it was added for: a sender who
+   * says there is no clock has told us something, and that is different from silence.
+   */
+  const floorRank = PRIORITY_RANK[CATEGORY_PRIORITY_FLOOR[category]];
+  let rank = floorRank;
   for (const mod of PRIORITY_MODIFIERS) {
     if (!isPresent(signals, mod.signal)) continue;
     if (mod.exceptFor?.includes(category)) continue;
@@ -249,7 +266,7 @@ function priorityFor(category: Category, signals: Signal[]): Priority {
     if (mod.suppressedBy?.some((id) => isPresent(signals, id))) continue;
     rank += mod.points;
   }
-  return rankToPriority(rank);
+  return rankToPriority(rank, floorRank);
 }
 
 /**

@@ -9,49 +9,49 @@
       "in_stub_because": "the arms disagree with each other, and the rule floor disagrees with them",
       "subject": "Wealth planning after a liquidity event",
       "body": "I recently sold my business and have around $8M in proceeds to invest. Looking for help with tax-efficient planning and setting up a family office structure. Who should I speak with?",
-      "category": null,
-      "priority": null,
+      "category": "prospect",
+      "priority": "high",
       "why": ""
     },
     "inb-003": {
       "in_stub_because": "the arms disagree with each other, and the rule floor disagrees with them",
       "subject": "Portfolio analytics platform — quick demo?",
       "body": "Hi team, we sell portfolio analytics software used by 200+ RIAs. Would love 20 minutes to show you what we do. Are you free next week?",
-      "category": null,
-      "priority": null,
+      "category": "junk",
+      "priority": "low",
       "why": ""
     },
     "inb-004": {
       "in_stub_because": "the arms disagree with each other, and the rule floor disagrees with them",
       "subject": "Exciting opportunity",
       "body": "Hello! I came across your profile and think you'd be a great fit for a senior role with one of my clients. Open to a chat this week?",
-      "category": null,
-      "priority": null,
+      "category": "junk",
+      "priority": "low",
       "why": ""
     },
     "inb-006": {
       "in_stub_because": "the arms disagree with each other, and the rule floor disagrees with them",
       "subject": "Just exploring options",
       "body": "No rush at all — I'm early in thinking about whether to work with an advisor and just gathering information. What's your minimum, and how do fees work?",
-      "category": null,
-      "priority": null,
-      "why": ""
+      "category": "prospect",
+      "priority": "medium",
+      "why": "prospect is always medium priority at least"
     },
     "inb-007": {
       "in_stub_because": "the arms disagree with each other, and the rule floor disagrees with them",
       "subject": "Possible referral partnership",
       "body": "I run a small RIA and occasionally have clients whose needs fall outside our scope. Could we explore a referral arrangement?",
-      "category": null,
-      "priority": null,
+      "category": "prospect",
+      "priority": "medium",
       "why": ""
     },
     "inb-009": {
       "in_stub_because": "the arms disagree with each other, and the rule floor disagrees with them",
       "subject": "Following up",
       "body": "Hi — just following up on our conversation. Let me know the next step whenever you get a chance. Thanks!",
-      "category": null,
-      "priority": null,
-      "why": ""
+      "category": "unknown",
+      "priority": "medium",
+      "why": "it could be fitting into multiple categories, unknown is the only correct answer without any context"
     }
   }
 }
