@@ -17,7 +17,13 @@
 
 import { renderObservations, type Signal } from './observations.js';
 import { CONFIDENCE_THRESHOLD, FIELD_LIMITS, TRIAGE_SCHEMA } from './schema.js';
-import { CATEGORIES, PRIORITIES, isOrgSentinel, type InboundMessage } from './types.js';
+import {
+  CATEGORIES,
+  MODEL_CATEGORY_IDS,
+  PRIORITIES,
+  isOrgSentinel,
+  type InboundMessage,
+} from './types.js';
 
 /**
  * The message body is untrusted third-party text, so it gets an explicit boundary and the system prompt
@@ -39,7 +45,9 @@ const CLOSING = [
 ].join(' ');
 
 export function buildSystemPrompt(): string {
-  const categories = CATEGORIES.map((row) =>
+  // Only the categories the model may actually return. Describing `unreadable` while the schema refuses it
+  // would be worse than either: the model would be told to reach for a label the request then rejects.
+  const categories = CATEGORIES.filter((row) => (MODEL_CATEGORY_IDS as readonly string[]).includes(row.id)).map((row) =>
     [`  ${row.id} - ${row.label}`, `      ${row.definition}`, `      If chosen: ${row.routing}`].join(
       '\n',
     ),

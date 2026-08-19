@@ -74,12 +74,37 @@ export const CATEGORIES = [
     definition:
       'There is nothing checkable in the message at all: an empty body, a single punctuation mark, or corrupted transport data.',
     routing: 'Discard, or check whether the intake form is broken.',
+    // Decided by the rule layer before any model call, and therefore NOT offered to the model. See
+    // MODEL_CATEGORY_IDS below.
+    decidedBy: 'rules',
   },
 ] as const;
 
 export type Category = (typeof CATEGORIES)[number]['id'];
 
 export const CATEGORY_IDS = CATEGORIES.map((c) => c.id) as readonly Category[];
+
+/**
+ * The categories the MODEL may assign. Every label a judgment can reach, and no label the machine has
+ * already settled.
+ *
+ * `unreadable` is excluded because it is not a judgment about intent — it is a measurement of the bytes,
+ * made deterministically before the model is called at all. An unreadable message short-circuits: the row
+ * is written with its `reason` and no request is ever sent (see run.ts). So every message that reaches the
+ * model has, by construction, already been found readable.
+ *
+ * Offering the label anyway was a defect. `reason` is null on every model path, so a model that picked
+ * `unreadable` produced a row claiming there was nothing checkable in a message the rule layer had just
+ * proved has content, with no reason displayed to explain the contradiction. A choice that can only ever
+ * be wrong should not be on the menu.
+ *
+ * Derived from the rows rather than hardcoded, so a future machine-decided label is excluded by declaring
+ * `decidedBy: 'rules'` on it and a future judgment label is offered automatically. tests/taxonomy.test.ts
+ * pins both directions.
+ */
+export const MODEL_CATEGORY_IDS = CATEGORIES.filter((c) => !('decidedBy' in c)).map(
+  (c) => c.id,
+) as readonly Category[];
 
 /**
  * Priority is defined by deadline and money at risk — never by tone. An angry message about a small fee is
