@@ -365,13 +365,24 @@ async function runCell(
   return cell;
 }
 
+/**
+ * A label may be UNCERTAIN, and saying so is not a defect in the label.
+ *
+ * Joel marked four rows low-confidence for a reason the tool cannot fix: three messages could be read as
+ * `compliance` or as `existing_client`, and the difference turns on context this app does not have — no
+ * client list, no address book, no prior thread. Deciding those from the text alone is guessing, and a
+ * labeller who guesses and then reports the guess as ground truth manufactures a score.
+ *
+ * So accuracy is reported twice: over every label, and over the confident ones only. Averaging the two
+ * together would let four coin flips move the headline number by twenty-five points on a sixteen-row set.
+ */
 interface Labels {
-  byId: Map<string, { category: Category | null; priority: Priority | null }>;
+  byId: Map<string, { category: Category | null; priority: Priority | null; confident: boolean }>;
   problems: string[];
 }
 
 function readLabels(path: string, knownIds: ReadonlySet<string>): Labels {
-  const byId = new Map<string, { category: Category | null; priority: Priority | null }>();
+  const byId = new Map<string, { category: Category | null; priority: Priority | null; confident: boolean }>();
   const problems: string[] = [];
 
   let parsed: unknown;
@@ -410,10 +421,21 @@ function readLabels(path: string, knownIds: ReadonlySet<string>): Labels {
       problems.push(`label for ${id} has priority ${JSON.stringify(priority)}, which is not a priority`);
       ok = false;
     }
+    // `confidence` is optional and absent means confident: a labeller should not have to assert certainty
+    // on every row to be taken at face value. Only the explicit admission of doubt is recorded.
+    const confidence = entry['confidence'];
+    if (confidence !== undefined && confidence !== 'low' && confidence !== 'high') {
+      problems.push(
+        `label for ${id} has confidence ${JSON.stringify(confidence)}; it must be "low", "high", or absent`,
+      );
+      continue;
+    }
+
     if (!ok) continue;
     byId.set(id, {
       category: isCategory(category) ? category : null,
       priority: isPriority(priority) ? priority : null,
+      confident: confidence !== 'low',
     });
   }
 
@@ -493,6 +515,9 @@ interface ArmStats {
   attributable: Cell[];
   failures: Map<FailureKind, number>;
   categoryVsLabels: Rate;
+  /** Same measure, restricted to labels the labeller did not flag as uncertain. */
+  categoryVsConfidentLabels: Rate;
+  priorityVsConfidentLabels: Rate;
   priorityVsLabels: Rate;
   categoryVsRules: Rate;
   priorityVsRules: Rate;
@@ -535,6 +560,8 @@ function statsFor(
   }
 
   let catVsLabels = rate(0, 0);
+  let catVsSure = rate(0, 0);
+  let priVsSure = rate(0, 0);
   let priVsLabels = rate(0, 0);
   let catVsRules = rate(0, 0);
   let priVsRules = rate(0, 0);
@@ -566,10 +593,14 @@ function statsFor(
 
     const label = labels.byId.get(cell.messageId);
     if (label?.category != null) {
-      catVsLabels = rate(catVsLabels.hits + (verdict.category === label.category ? 1 : 0), catVsLabels.of + 1);
+      const hit = verdict.category === label.category ? 1 : 0;
+      catVsLabels = rate(catVsLabels.hits + hit, catVsLabels.of + 1);
+      if (label.confident) catVsSure = rate(catVsSure.hits + hit, catVsSure.of + 1);
     }
     if (label?.priority != null) {
-      priVsLabels = rate(priVsLabels.hits + (verdict.priority === label.priority ? 1 : 0), priVsLabels.of + 1);
+      const hit = verdict.priority === label.priority ? 1 : 0;
+      priVsLabels = rate(priVsLabels.hits + hit, priVsLabels.of + 1);
+      if (label.confident) priVsSure = rate(priVsSure.hits + hit, priVsSure.of + 1);
     }
   }
 
@@ -613,6 +644,8 @@ function statsFor(
     attributable,
     failures,
     categoryVsLabels: catVsLabels,
+    categoryVsConfidentLabels: catVsSure,
+    priorityVsConfidentLabels: priVsSure,
     priorityVsLabels: priVsLabels,
     categoryVsRules: catVsRules,
     priorityVsRules: priVsRules,
@@ -835,7 +868,9 @@ function renderReport(input: ReportInput): string {
         `${arm} ${ARM_NAMES[arm]}`,
         `${s.attributable.length}/${s.cells.length}`,
         pct(s.categoryVsLabels),
+        pct(s.categoryVsConfidentLabels),
         pct(s.priorityVsLabels),
+        pct(s.priorityVsConfidentLabels),
         pct(s.categoryVsRules),
         pct(s.priorityVsRules),
       ]);
@@ -870,12 +905,27 @@ function renderReport(input: ReportInput): string {
 
   out.push(
     ...table(
-      ['model', 'arm', 'attributable', 'category vs labels', 'priority vs labels', 'category vs rules', 'priority vs rules'],
+      [
+        'model',
+        'arm',
+        'attributable',
+        'category vs labels',
+        'category vs sure',
+        'priority vs labels',
+        'priority vs sure',
+        'category vs rules',
+        'priority vs rules',
+      ],
       qualityRows,
     ),
     '',
     '`attributable` counts the answered calls that came back from the slug we asked for. Accuracy columns cover',
     "only the rows Joel labelled; `n/a` means unlabelled, never 'agreed'.",
+    '',
+    '**The `vs sure` columns exclude rows Joel flagged as uncertain**, and they are the ones to read when the',
+    'two differ. A label he was not sure of is a coin flip promoted to ground truth, and on a set this small a',
+    'handful of them moves the headline number further than any model difference does. Where the two columns',
+    'agree, the uncertainty was not load-bearing.',
     '',
     '## Blind-to-primed movement, split by whether the rules were right',
     '',

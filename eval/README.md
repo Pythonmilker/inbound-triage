@@ -82,12 +82,51 @@ pnpm eval --queue eval/holdout.json --labels eval/holdout-labels.json --label-al
 `--label-all` matters: the default stubs only the rows where something disagreed, which is right for the
 training set and wrong here. Accuracy over just the disagreeing rows is accuracy over a biased subset.
 
-## Reading the result honestly
+## The result
 
-- **Rules hold up on cold mail** → the deterministic layer generalises, and the model's contribution is the
-  written summary plus coverage of whatever the patterns still miss. Say that plainly.
-- **Rules degrade and the model does not** → reconciliation is carrying real weight, and the two-layer design
-  is doing what it was built for.
-- **Both degrade** → the taxonomy or the labels need work before either layer is the problem.
+Twelve of the sixteen labels are confident; four sit on a `compliance` / `existing_client` boundary the text
+alone cannot settle, and are marked `"confidence": "low"` so they can be excluded rather than averaged in. On
+a set this small, four uncertain rows move a headline number by twenty-five points.
+
+**On the confident rows:**
+
+| | category | priority |
+|---|---|---|
+| rule floor alone | **1/12 — 8.3%** | 5/12 — 41.7% |
+| llama-3.1-8b, arm 2 | 6/12 — 50.0% | 4/12 — 33.3% |
+| gpt-4.1-nano, arm 2 | 6/12 — 50.0% | 5/12 — 41.7% |
+| llama-3.3-70b, arm 2 | **9/12 — 75.0%** | **7/12 — 58.3%** |
+
+**The rule floor scores 6/6 on the training set and 1/16 on the test set.** It returns `unknown` on fifteen
+of sixteen cold messages — quietly, at `medium`, looking exactly like a healthy verdict. That is the
+silent-failure mode a regex layer has and a model does not, and it is why both numbers have to be reported
+together. Rules win on the tuned set. The model wins by six to nine times on mail it has never seen.
+
+### The anchoring control fired here, and could not on the training set
+
+Arm 3 hands the model the rule layer's conclusion. On the training set that looked like a *win* — but the
+floor was right on every labelled row there, so "the anchor helped" and "the model capitulated onto a correct
+answer" were indistinguishable. The floor is wrong 94% of the time on cold mail, which supplies the
+discriminating condition:
+
+| model | arm 3 flips | onto the rules' answer | onto a **wrong** floor | category, arm 2 → arm 3 |
+|---|---|---|---|---|
+| llama-3.1-8b | 75.0% | 91.7% | **80.0%** | 50.0% → 16.7% |
+| gpt-4.1-nano | 80.0% | 100.0% | **85.7%** | 50.0% → 9.1% |
+| llama-3.3-70b | 18.8% | 0.0% | 20.0% | 75.0% → 66.7% |
+
+Accuracy collapses by 33 to 41 points on the small models. Capitulation scales inversely with model size —
+worth knowing, because the shipping model is the small one.
+
+## What is deliberately not being fixed
+
+The floor's misses are specific: a payment redirect phrased as *"we have switched banks"* did not fire the
+fraud guard; an auditor's request said *"examination of a client's holdings"* where the pattern wants
+"examination notice", and spelled "ten" where it wants digits; benefit-claim marketing did not fire the
+vendor patterns.
+
+**Editing those patterns to match these sixteen messages would convert the test set into a training set**, and
+the 8.3% would stop meaning anything. It is exactly the fitting behaviour this directory exists to detect. Any
+pattern work needs a fresh held-out set to be measured against.
 
 A gap of one row is roughly six points on sixteen messages. Read the percentages as counts.
