@@ -21,12 +21,18 @@ Open http://localhost:5274. Thirteen messages load untriaged. Press the Run tria
 
 ```
 13 triaged · nothing failed
-12 model calls · $0.0022 · 5.1s
-Attempts that failed this run: the reply did not match the schema ×1
+11 model calls · $0.0019 · 6.8s
 ```
 
-Twelve calls for thirteen messages. Two have nothing readable in them and do not reach the provider, and one
-reply came back malformed, so the chain retried it against the next model.
+Eleven calls for thirteen messages. Two have nothing readable in them and never reach the provider. Cost and
+timing move a little from run to run.
+
+When a reply comes back malformed the chain retries that message against the next model and the summary bar
+names it, which adds a call:
+
+```
+Attempts that failed this run: the reply did not match the schema ×1
+```
 
 Running again does nothing, by design. Results are keyed by message id and content hash, so a re-run does
 not re-roll answers already computed. To get back to an untriaged queue:

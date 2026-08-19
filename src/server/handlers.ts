@@ -119,7 +119,8 @@ function modelOverrideOf(env: Record<string, string>): string | undefined {
 
 /**
  * A typo must not stop the queue from running, so an unusable value falls through to the engine's own
- * default — and `/api/health` reports what was applied, which is what keeps that from being silent.
+ * default. `/api/health` reports null for both unset and unusable rather than the number that was applied:
+ * it tells an operator "nothing you set is in effect", which is the part they can act on.
  */
 function concurrencyOf(env: Record<string, string>): number | null {
   const raw = env['TRIAGE_CONCURRENCY']?.trim();
