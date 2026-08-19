@@ -1,10 +1,13 @@
 /**
  * Reading the queue off disk, with one repair.
  *
- * The supplied `raw/inbound.json` is itself one of the planted edge cases: `inb-011`'s body carries two
- * literal `\x00` escapes, which JSON does not define, so a strict `JSON.parse` of the whole FILE fails at
- * position 3329 — before any per-item check can run. So the loader reads text, rewrites the illegal escapes
- * to the equivalent legal `\u00HH`, then parses.
+ * `raw/inbound.json` is malformed at the FILE level, not just the item level: `inb-011`'s body carries two
+ * literal `\x00` escapes, which JSON does not define, so a strict `JSON.parse` of the whole file fails at
+ * position 3329 — before any per-item check can run, and yielding no messages at all rather than twelve good
+ * ones. So the loader reads text, rewrites the illegal escapes to the equivalent legal `\u00HH`, then parses.
+ *
+ * Repairing here rather than editing the data is the decision. Fixing the fixture by hand would have been
+ * quicker and would have destroyed the malformed message the tool is supposed to survive.
  *
  * The NUL characters survive that rewrite on purpose. Same codepoint, legal syntax: stripping them here
  * would hide the garbage from the layer whose job it is to call the message unreadable.

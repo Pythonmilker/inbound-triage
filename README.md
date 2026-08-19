@@ -146,7 +146,7 @@ a 429 is retried while the limit is still in force. It drains when someone press
 ```
 src/triage/     taxonomy, schema, validation, rule layer, reconciliation, run loop
 src/llm/        OpenRouter transport, model registry, typed failures
-src/ingest/     loader, including the repair that makes the supplied file parseable
+src/ingest/     loader, including the repair that makes the message file parseable
 src/store/      Store interface and the SQLite implementation
 src/ui/         React grid, filter bar, run summary
 prompts/        the system prompt as the code emits it, plus the approach

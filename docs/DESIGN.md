@@ -155,10 +155,16 @@ The two things this diagram is drawn to make obvious: **the key never crosses in
 
 ### 4.1 Ingest — `src/ingest/load.ts`
 
-The supplied `inbound.json` **is itself one of the planted edge cases**: item `inb-011` contains `\x00`
-escapes, which are not legal JSON, so a strict `JSON.parse` of the file fails outright. The loader
-therefore reads text, repairs known-illegal escape sequences, and parses; on total failure it reports
-the parse error rather than crashing.
+`raw/inbound.json` **is malformed at the FILE level, not just the item level**: `inb-011`'s body carries
+`\x00` escapes, which JSON does not define, so a strict `JSON.parse` of the whole file fails outright rather
+than yielding twelve good items and one bad one. The loader therefore reads text, repairs known-illegal escape
+sequences, and parses; on total failure it reports the parse error rather than crashing.
+
+The brief prints its sample data in Appendix A rather than shipping a file, so this file is a transcription of
+it. Whether the escapes were authored there or introduced in transcribing it, the decision they force is the
+same, and it is the one worth defending: **repair at load time rather than sanitise the source.** Hand-editing
+the fixture would have been quicker and would have destroyed the edge case the brief asks the tool to
+survive.
 
 Per-item validation is separate, and D-011 sets its shape: an item missing `id`, or with a body under a
 content threshold, becomes a **real row in the queue** with `category: unreadable`, a low confidence score,

@@ -162,7 +162,7 @@ export function App() {
         </>
       ) : (
         <>
-          {/* The supplied file is itself one of the planted edge cases, so its repair is reportable
+          {/* The message file does not parse as JSON at all, so its repair is reportable
               before anything has been triaged rather than only in a run summary (DESIGN §4.1). */}
           {loaderNote !== null && <p className="banner banner-note">Loader: {loaderNote}</p>}
           <p className="empty">{emptyText(loaded, messages.length)}</p>
