@@ -284,10 +284,28 @@ model {
           description '''
             There is exactly one model call per message and it already happened by the time this runs.
 
-            Two rules do the work. Priority takes the *higher* of the two, so the rule layer can raise
-            urgency but never lower it — a model that under-reads an angry client is the expensive mistake,
-            while a false high costs one glance. Category takes the model's answer *unless* the sender
-            explicitly said they were a client, because that is a fact stated in the text.
+            **Priority takes the higher of the two**, so the rule layer can raise urgency and never lower it —
+            a model that under-reads an angry client is the expensive mistake, while a false high costs one
+            glance. That asymmetry is also what makes the floor's own negative modifiers safe: they can lower
+            the floor's read and never the merged verdict.
+
+            **Category takes the model's answer unless one of three things is true.** The sender explicitly
+            said they were a client, in the first person — a fact stated in the text, not a judgement. Or the
+            model scored under its own confidence threshold. Or the rule layer matched evidence
+            *characteristic* of one category rather than merely suggestive of it — weight 4 or more, meaning a
+            phrase that would be odd coming from anything else.
+
+            That third rule exists because of a measured failure. The floor read a vendor pitch as `junk` on
+            the phrase *"we sell"*; the model called the sender a `prospect` at 0.80, cleared the threshold,
+            and won. It was wrong — and the model **already had that phrase in its prompt**, so no rewording
+            could have fixed it. Authority was the right instrument rather than persuasion.
+
+            **Every disagreement is recorded on the row, including the ones the model wins.** That path used
+            to produce no note at all, which made it the one place a disagreement was resolved in silence.
+
+            The `source` field says which layer supplied the verdict, and `agreed` is one of its four values:
+            both layers reaching the same category independently is the most valuable outcome here, and with
+            three values it was invisible — filed under whichever layer happened to supply it.
           '''
           link ../src/triage/reconcile.ts 'source'
           metadata {
@@ -390,11 +408,18 @@ model {
       db = datastore 'triage.db' {
         #built
         technology 'SQLite · WAL'
-        summary 'Two tables, not three. A message with nothing readable in it is an ordinary row.'
+        summary 'Two tables, not three — and it rebuilds itself when the schema drifts underneath it.'
         description '''
-          It carries the label `junk` like any other category, with a `reason` naming which kind of
-          nothing it was, and that is what removed a whole surface
-          from the interface.
+          It carries the label `junk` like any other category, with a `reason` naming which kind of nothing
+          it was, and that is what removed a whole surface from the interface.
+
+          The schema's enum constraints are generated from the taxonomy, which stops them drifting in
+          *source* — and did nothing about drifting on *disk*. `CREATE TABLE IF NOT EXISTS` leaves an
+          existing file's constraints exactly as written, so a database created before a category was
+          renamed kept rejecting the new label, and a live run lost every affected row while the whole test
+          suite stayed green because each test starts from a fresh file. The DDL is now fingerprinted into
+          `PRAGMA user_version` and the tables rebuild when it moves. Not a numbered migration ladder: a
+          hand-maintained version is one more thing to forget, and forgetting is the failure this prevents.
         '''
         link ../src/store/sqlite.ts 'source'
         metadata {
