@@ -138,7 +138,8 @@ Four of the sixteen held-out labels are marked low confidence, because they sit 
 `existing_client` boundary the message text cannot settle without a client list or a prior thread. The report
 scores accuracy with and without them.
 
-The retry queue has no backoff schedule. It drains when someone presses Retry.
+The retry queue has no backoff schedule. Nothing reads `Retry-After` or the provider's rate-limit headers, so
+a 429 is retried while the limit is still in force. It drains when someone presses Retry.
 
 ## Layout
 
