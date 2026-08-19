@@ -126,6 +126,17 @@ interface Options {
   models: string[];
   arms: ArmId[];
   outPath: string;
+  /** Which queue to measure. Defaults to the supplied sample; a held-out set is passed in. */
+  queuePath: string;
+  labelsPath: string;
+  /**
+   * Stub every runnable row rather than only the rows where something disagreed.
+   *
+   * The default is right for the supplied sample, where a label is only worth writing where it changes a
+   * number. It is wrong for a held-out set: there the question is accuracy, and accuracy measured only on
+   * the rows that happened to disagree is accuracy over a biased subset.
+   */
+  labelAll: boolean;
 }
 
 type ParsedArgs = { ok: true; options: Options } | { ok: false; message: string };
@@ -137,21 +148,48 @@ function showPath(path: string): string {
 
 const USAGE = [
   'Usage: pnpm eval [--model <slug>]... [--arms 1,2,3] [--out <path>]',
+  '                 [--queue <path>] [--labels <path>] [--label-all]',
   '',
-  `  --model  a slug to measure, repeatable. Default: the shipping chain (${TRIAGE_CHAIN.join(', ')}).`,
-  '  --arms   which arms to run, comma-separated. Default: 1,2,3.',
-  `  --out    where the report is written. Default: ${showPath(DEFAULT_OUT_PATH)}`,
+  `  --model      a slug to measure, repeatable. Default: the shipping chain (${TRIAGE_CHAIN.join(', ')}).`,
+  '  --arms       which arms to run, comma-separated. Default: 1,2,3.',
+  `  --out        where the report is written. Default: ${showPath(DEFAULT_OUT_PATH)}`,
+  `  --queue      which queue to measure. Default: ${showPath(INBOUND_PATH)}`,
+  `  --labels     where the hand labels live. Default: ${showPath(LABELS_PATH)}`,
+  '  --label-all  stub every row, not only the rows where something disagreed. Use this for a',
+  '               held-out set, where accuracy over just the disagreeing rows is a biased subset.',
 ].join('\n');
 
 function parseArgs(argv: readonly string[]): ParsedArgs {
   const models: string[] = [];
   let arms: ArmId[] | null = null;
   let outPath: string | null = null;
+  let queuePath: string | null = null;
+  let labelsPath: string | null = null;
+  let labelAll = false;
 
   for (let i = 0; i < argv.length; i += 1) {
     const flag = argv[i];
     if (flag === undefined) continue;
     const value = argv[i + 1];
+
+    if (flag === '--label-all') {
+      labelAll = true;
+      continue;
+    }
+
+    if (flag === '--queue') {
+      if (value === undefined) return { ok: false, message: '--queue needs a path.' };
+      queuePath = resolve(ROOT, value);
+      i += 1;
+      continue;
+    }
+
+    if (flag === '--labels') {
+      if (value === undefined) return { ok: false, message: '--labels needs a path.' };
+      labelsPath = resolve(ROOT, value);
+      i += 1;
+      continue;
+    }
 
     if (flag === '--model') {
       if (value === undefined) return { ok: false, message: '--model needs a model slug.' };
@@ -196,6 +234,9 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
       models: models.length > 0 ? models : [...TRIAGE_CHAIN],
       arms: arms ?? [...ARM_IDS],
       outPath: outPath ?? DEFAULT_OUT_PATH,
+      queuePath: queuePath ?? INBOUND_PATH,
+      labelsPath: labelsPath ?? LABELS_PATH,
+      labelAll,
     },
   };
 }
@@ -716,6 +757,10 @@ interface ReportInput {
   stubRows: readonly StubRow[];
   /** Whether the labels file was already on disk. A stub is only ever written when it was not. */
   labelsExisted: boolean;
+  /** The paths actually used, so the report names the file it read rather than the default. */
+  queuePath: string;
+  labelsPath: string;
+  labelAll: boolean;
   statsByModel: ReadonlyMap<string, ReadonlyMap<ArmId, ArmStats>>;
 }
 
@@ -974,13 +1019,13 @@ function renderReport(input: ReportInput): string {
   );
   if (!labelsExisted && stubRows.length > 0) {
     out.push(
-      `Wrote the stub to \`${showPath(LABELS_PATH)}\` with those rows and NULL labels. ${LABELS_STUB_NOTES.who}`,
+      `Wrote the stub to \`${showPath(input.labelsPath)}\` with those rows and NULL labels. ${LABELS_STUB_NOTES.who}`,
       '',
       `${LABELS_STUB_NOTES.absent}`,
       '',
     );
   } else if (labelsExisted) {
-    out.push(`Read \`${showPath(LABELS_PATH)}\`. It was not rewritten - delete it for a fresh stub.`, '');
+    out.push(`Read \`${showPath(input.labelsPath)}\`. It was not rewritten - delete it for a fresh stub.`, '');
     const unlabelled = stubRows.filter((row) => {
       const label = labels.byId.get(row.message.id);
       return label === undefined || label.category === null;
@@ -1034,7 +1079,7 @@ async function main(): Promise<void> {
     fail([parsed.message, 'Run `pnpm eval --help` for the flags.']);
     return;
   }
-  const { models, arms, outPath } = parsed.options;
+  const { models, arms, outPath, queuePath, labelsPath, labelAll } = parsed.options;
 
   const ineligible = models.filter((slug) => MODEL_REGISTRY[slug]?.structuredOutputs !== true);
   if (ineligible.length > 0) {
@@ -1065,7 +1110,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  const { messages, parseNote } = loadInbound(INBOUND_PATH);
+  const { messages, parseNote } = loadInbound(queuePath);
 
   const rows: Row[] = messages.map((message) => {
     const signals = observe(message);
@@ -1118,9 +1163,9 @@ async function main(): Promise<void> {
   );
 
   const knownIds = new Set(messages.map((m) => m.id));
-  const labelsExisted = existsSync(LABELS_PATH);
+  const labelsExisted = existsSync(labelsPath);
   const labels: Labels = labelsExisted
-    ? readLabels(LABELS_PATH, knownIds)
+    ? readLabels(labelsPath, knownIds)
     : { byId: new Map(), problems: [] };
 
   // Rows worth a label: the arms disagreed with each other, or the rule floor disagreed with them. The
@@ -1135,11 +1180,12 @@ async function main(): Promise<void> {
     const rulesDisagree = answers.some(
       (c) => c.verdict?.category !== row.rules.category || c.verdict?.priority !== row.rules.priority,
     );
-    if (!armsDisagree && !rulesDisagree) continue;
+    if (!labelAll && !armsDisagree && !rulesDisagree) continue;
     stubRows.push({
       message: row.message,
-      because:
-        armsDisagree && rulesDisagree
+      because: labelAll
+        ? 'every row is stubbed for a held-out set: accuracy over only the disagreeing rows is accuracy over a biased subset'
+        : armsDisagree && rulesDisagree
           ? 'the arms disagree with each other, and the rule floor disagrees with them'
           : armsDisagree
             ? 'the arms disagree with each other'
@@ -1147,7 +1193,7 @@ async function main(): Promise<void> {
     });
   }
 
-  if (!labelsExisted && stubRows.length > 0) writeLabelsStub(LABELS_PATH, stubRows);
+  if (!labelsExisted && stubRows.length > 0) writeLabelsStub(labelsPath, stubRows);
 
   const statsByModel = new Map<string, Map<ArmId, ArmStats>>();
   for (const model of models) {
@@ -1172,6 +1218,9 @@ async function main(): Promise<void> {
     labels,
     stubRows,
     labelsExisted,
+    queuePath,
+    labelsPath,
+    labelAll,
     statsByModel,
   });
 
