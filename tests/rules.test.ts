@@ -225,14 +225,14 @@ const CORPUS: readonly Phrasing[] = [
     subject: 'Your Monday market digest',
     body: 'MARKETS: Equities edged higher... [automated newsletter] To unsubscribe click here.',
     from_org: 'Market Daily',
-    category: 'noise',
+    category: 'automated',
     priority: 'low',
   },
   {
     why: 'list-management boilerplate, contraction',
     body: "You're receiving this because you subscribed to our list. Manage your email preferences or opt out at any time.",
     from_org: 'Market Daily',
-    category: 'noise',
+    category: 'automated',
     priority: 'low',
   },
   {
@@ -240,7 +240,7 @@ const CORPUS: readonly Phrasing[] = [
     subject: 'Weekly digest',
     body: 'View this in your browser.',
     from_org: 'Market Daily',
-    category: 'noise',
+    category: 'automated',
     priority: 'low',
   },
   {

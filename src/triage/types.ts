@@ -55,11 +55,11 @@ export const CATEGORIES = [
     routing: 'Route to the chief compliance officer. These carry statutory clocks.',
   },
   {
-    id: 'noise',
-    label: 'Noise',
+    id: 'automated',
+    label: 'Automated',
     definition:
-      'Automated or bulk correspondence addressed to nobody in particular: newsletters, digests, mailing-list traffic.',
-    routing: 'No action. Consider filtering at the inbox.',
+      'Sent by a machine, or to a list rather than to a person: newsletters, digests, notifications, automated alerts.',
+    routing: 'No action needed. Consider filtering it at the inbox.',
   },
   {
     id: 'unknown',

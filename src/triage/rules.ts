@@ -86,7 +86,7 @@ const CATEGORY_EVIDENCE: Record<Category, readonly Evidence[]> = {
     { signal: 'money_outbound', weight: 3 },
   ],
   partner_referral: [{ signal: 'partner_language', weight: 3 }],
-  noise: [{ signal: 'bulk_markers', weight: 4 }],
+  automated: [{ signal: 'bulk_markers', weight: 4 }],
   unknown: [],
   unreadable: [],
 };
@@ -112,7 +112,7 @@ const CATEGORY_PRIORITY_FLOOR: Record<Category, Priority> = {
   prospect: 'medium',
   partner_referral: 'medium',
   vendor: 'low',
-  noise: 'low',
+  automated: 'low',
   unknown: 'low',
   unreadable: 'low',
 };
@@ -141,7 +141,7 @@ interface PriorityModifier {
   suppressedBy?: readonly SignalId[];
 }
 
-const NEVER: readonly Category[] = ['noise', 'unreadable'];
+const NEVER: readonly Category[] = ['automated', 'unreadable'];
 const SALES_EVIDENCE: readonly SignalId[] = ['selling_language', 'recruiting_language'];
 
 const PRIORITY_MODIFIERS: readonly PriorityModifier[] = [
