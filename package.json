@@ -14,10 +14,11 @@
     "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "verify": "pnpm typecheck && pnpm test",
+    "verify": "pnpm typecheck && pnpm lint:deps && pnpm test",
     "eval": "tsx scripts/eval.ts",
     "prompts:dump": "tsx scripts/dump-prompt.ts",
-    "reset": "tsx scripts/reset.ts"
+    "reset": "tsx scripts/reset.ts",
+    "lint:deps": "depcruise src --config .dependency-cruiser.cjs"
   },
   "dependencies": {
     "react": "^19.2.0",
@@ -28,6 +29,7 @@
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^5.1.0",
+    "dependency-cruiser": "^18.2.0",
     "tsx": "^4.23.0",
     "typescript": "^5.9.0",
     "vite": "^7.3.0",
