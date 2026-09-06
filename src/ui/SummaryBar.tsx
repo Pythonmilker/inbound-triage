@@ -14,10 +14,10 @@
  * "could not be triaged"; conflating them overstates the damage. The tally is reported separately.
  */
 
-import { attemptSummary, FAILURE_POLICY, fixForRow } from '../triage/retry.js';
-import type { RunSummary } from '../triage/run.js';
+import { attemptSummary, FAILURE_POLICY, fixForRow } from '../triage/types.js';
+import type { RunSummary } from '../runContract.js';
 import type { FailureKind, TriageResult } from '../triage/types.js';
-import type { QueueRow } from './App.js';
+import type { QueueRow } from './types.js';
 
 const MAX_LISTED_ERRORS = 3;
 

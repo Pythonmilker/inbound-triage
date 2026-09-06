@@ -28,8 +28,9 @@ import type { NotifyEvent, Notifier } from '../src/integrations/notify.js';
 import { TRIAGE_CHAIN } from '../src/llm/protocol.js';
 import { createSqliteStore } from '../src/store/sqlite.js';
 import type { Store } from '../src/store/types.js';
-import { fixForRow } from '../src/triage/retry.js';
-import { createTriageEngine, type RunSummary, type TriageEngine } from '../src/triage/run.js';
+import { fixForRow } from '../src/triage/types.js';
+import { createTriageEngine, type TriageEngine } from '../src/triage/run.js';
+import type { RunSummary } from '../src/runContract.js';
 import type { InboundMessage, TriageResult, TriageStatus } from '../src/triage/types.js';
 
 /** The supplied file, used as supplied: it is itself one of the planted edge cases. */

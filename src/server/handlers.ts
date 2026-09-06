@@ -22,7 +22,8 @@ import { loadInbound } from '../ingest/load.js';
 import { modelChain } from '../llm/protocol.js';
 import { createSqliteStore } from '../store/sqlite.js';
 import type { Store } from '../store/types.js';
-import { createTriageEngine, type RunSummary, type TriageEngine } from '../triage/run.js';
+import type { RunSummary } from '../runContract.js';
+import { createTriageEngine, type TriageEngine } from '../triage/run.js';
 import type { InboundMessage, TriageResult } from '../triage/types.js';
 
 /** The queue's source of truth. Re-read on every request, so an edited message re-triages. */

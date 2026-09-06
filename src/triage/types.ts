@@ -199,6 +199,83 @@ export type FailureKind =
   | 'unparseable'
   | 'truncated';
 
+interface FailurePolicy {
+  /** Words for a person reading the row. The UI shows this, not the enum member. */
+  phrase: string;
+  /**
+   * What the operator has to change, or null when nothing they can do helps and only time or a different
+   * model will. A non-null fix is also what makes this failure operator-blocked rather than transient.
+   */
+  fix: string | null;
+  /**
+   * True only for a failure that is about THIS model's answer. A credential, a 429, a timeout, a 5xx or a
+   * dropped connection happened to the request rather than to the model, so it must not spend a chain
+   * slot: once the blocking condition clears the retry belongs on the same model, not on the next one
+   * down. Getting this wrong permanently demotes the primary model because of one 429.
+   */
+  consumesChainSlot: boolean;
+}
+
+/**
+ * Exhaustive by construction: a new `FailureKind` in types.ts fails to compile here until its behaviour is
+ * declared, so the taxonomy cannot grow a failure the queue silently drops on the floor.
+ */
+export const FAILURE_POLICY: Record<FailureKind, FailurePolicy> = {
+  no_key: {
+    phrase: 'no API key was configured',
+    fix: 'Set OPENROUTER_API_KEY in .env and run again - see the README quick start.',
+    consumesChainSlot: false,
+  },
+  key_rejected: {
+    phrase: 'the provider rejected the API key',
+    fix: 'Replace OPENROUTER_API_KEY in .env with a valid key, then run again.',
+    consumesChainSlot: false,
+  },
+  unfunded: {
+    phrase: 'the API key is out of credit',
+    fix: 'Add credit to the OpenRouter account this key belongs to, then run again.',
+    consumesChainSlot: false,
+  },
+  rate_limited: { phrase: 'the provider rate-limited the request', fix: null, consumesChainSlot: false },
+  timeout: { phrase: 'no reply arrived before the timeout', fix: null, consumesChainSlot: false },
+  server_error: { phrase: 'the provider returned an error', fix: null, consumesChainSlot: false },
+  network: { phrase: 'the request never reached the provider', fix: null, consumesChainSlot: false },
+  // The two that are about the answer. `unparseable` is why our own fallthrough exists at all (D-013c):
+  // OpenRouter's `models` array falls through on provider errors only, and an HTTP 200 containing prose is
+  // a success to it, so it will never retry. `truncated` is handled a step earlier — it raises the cap on
+  // the same model — and only consumes a slot once the token ceiling is reached.
+  unparseable: { phrase: 'the reply did not match the schema', fix: null, consumesChainSlot: true },
+  truncated: { phrase: 'the reply was cut off at the token limit', fix: null, consumesChainSlot: true },
+};
+
+/**
+ * The sentence a row has to be able to say for itself. Terminal in effect is fine; terminal and mute is
+ * not — a capped row that cannot name what was tried is indistinguishable from a bug.
+ */
+export function attemptSummary(attempts: readonly Attempt[]): string {
+  const last = attempts[attempts.length - 1];
+  if (last === undefined) return 'no attempts yet';
+  const models = new Set(attempts.map((a) => a.model)).size;
+  const tail =
+    last.failure !== undefined
+      ? `, last failure: ${FAILURE_POLICY[last.failure].phrase}`
+      : last.ok
+        ? ', last attempt succeeded'
+        : '';
+  return `${plural(attempts.length, 'attempt')} across ${plural(models, 'model')}${tail}`;
+}
+
+/** The operator-facing fix for a row, or null when only time or a different model will help. */
+export function fixForRow(attempts: readonly Attempt[]): string | null {
+  const last = attempts[attempts.length - 1];
+  if (last === undefined || last.failure === undefined) return null;
+  return FAILURE_POLICY[last.failure].fix;
+}
+
+function plural(n: number, noun: string): string {
+  return `${n} ${noun}${n === 1 ? '' : 's'}`;
+}
+
 /** What the model is asked to return. Field order matters — see schema.ts. */
 export interface ModelVerdict {
   summary: string;

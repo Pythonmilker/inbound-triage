@@ -9,7 +9,7 @@
  */
 
 import { createHash } from 'node:crypto';
-import type { InboundMessage } from '../triage/types.js';
+import type { InboundMessage } from './types.js';
 
 /**
  * The fields whose change changes the meaning. The ORDER is part of the hash: reordering this list

@@ -15,7 +15,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { RunSummary } from '../triage/run.js';
+import type { RunSummary } from '../runContract.js';
 import {
   PRIORITY_RANK,
   type Category,
@@ -26,12 +26,7 @@ import { errorText, fetchQueue, retryPending, runTriage } from './api.js';
 import { FilterBar, type FilterCounts, type FilterId } from './FilterBar.js';
 import { Grid } from './Grid.js';
 import { SummaryBar } from './SummaryBar.js';
-
-export interface QueueRow {
-  message: InboundMessage;
-  /** Null before the first run, and after a run whose pipeline threw on this message. */
-  result: TriageResult | null;
-}
+import type { QueueRow } from './types.js';
 
 export function App() {
   const [messages, setMessages] = useState<readonly InboundMessage[]>([]);

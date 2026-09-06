@@ -139,7 +139,11 @@ model {
           process, and it costs nothing — it is the absence of shared state rather than an added
           subsystem.
         '''
-        metadata { spec 'docs/DESIGN.md#2.3' }
+        link ../src/triage/run.ts 'orchestrator'
+        metadata {
+          spec 'docs/DESIGN.md#2.3'
+          file 'src/triage/run.ts'
+        }
 
         ingest = component 'Loader' {
           #built
@@ -345,6 +349,26 @@ model {
             file 'src/lib/pool.ts'
           }
         }
+
+        hash = component 'Content hash' {
+          #built
+          summary 'The idempotency key: one digest per message, over the fields whose change means new work.'
+          description '''
+            Keyed by message AND content, not message alone — the property that makes a re-run skip
+            unchanged rows and re-triage an edited one, and the same property the db datastore's own
+            description calls out ("carrying a content_hash").
+
+            Depends on the taxonomy for exactly one thing: which InboundMessage fields to digest, and in
+            what order (the order is part of the hash — reordering it invalidates every stored result).
+            That domain coupling is what keeps it out of src/lib, where the bounded pool above is a true,
+            fully generic leaf.
+          '''
+          link ../src/triage/hash.ts 'source'
+          metadata {
+            spec 'docs/DESIGN.md#4.4'
+            file 'src/triage/hash.ts'
+          }
+        }
       }
 
       store = container 'Store' {
@@ -455,9 +479,31 @@ model {
       And the output puts the summary and supporting evidence *before* the category and priority, because
       text is generated in order and whatever comes first conditions what follows. Labels first would
       decide the answer before the reasoning that justifies it.
+
+      A third row set lives here too: FAILURE_POLICY, one phrase-and-fix pair per FailureKind (plus
+      whether the failure is about THIS model's answer), and the two functions that turn an attempt log
+      into a sentence a person can act on — attemptSummary, fixForRow. They are taxonomy for the same
+      reason CATEGORIES and PRIORITIES are: words a person reads about an enum value, kept as one
+      exhaustive table rather than split across the engine and the browser. That is what lets the engine
+      (retry.ts, run.ts) and the browser (Row.tsx, SummaryBar.tsx) both depend on them without either
+      reaching into the other's internals.
     '''
     link ../src/triage/types.ts 'types'
     metadata { file 'src/triage/types.ts · src/triage/schema.ts' }
+  }
+
+  runcontract = artifact 'Run summary contract' {
+    #built
+    summary 'The shape of one run: counts, cost, calls, elapsed time, and what could not be triaged.'
+    description '''
+      Produced by the engine (triageAll, retryPending), returned as the body of the two POST routes, and
+      decoded by the browser to render the summary bar and the pending-retry control. None of those three
+      needs anything else the orchestrator holds — not the store, not the key, not TriageEngine itself —
+      so the shape lives in its own file instead of src/triage/run.ts, which is what lets the browser
+      depend on it without depending on the engine.
+    '''
+    link ../src/runContract.ts 'source'
+    metadata { file 'src/runContract.ts' }
   }
 
   // ── Relationships ─────────────────────────────────────────────────────────────────────────────
@@ -467,10 +513,15 @@ model {
   fixture -> triage.node.engine.ingest 'read at start of a run'
   taxonomy -> triage.node.engine.prompt 'generates the category list'
   taxonomy -> triage.node.engine.validate 'defines the legal values'
+  taxonomy -> triage.node.engine.hash 'field list and order the content hash is computed over'
 
   triage.browser.ui -> triage.browser.apiclient 'requests rows'
   triage.browser.summarybar -> triage.browser.apiclient 'requests run outcome'
   triage.browser.apiclient -> triage.node.server 'rows only — never a credential'
+
+  runcontract -> triage.node.engine 'the shape triageAll and retryPending return'
+  runcontract -> triage.node.server 'the run/retry response body'
+  runcontract -> triage.browser.apiclient 'decoded from the run/retry response'
 
   triage.node.preflight -> triage.node.server 'refuses to start without a key'
   triage.node.server -> triage.node.engine 'runs a triage, or drains the retry queue'

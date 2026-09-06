@@ -14,7 +14,7 @@
  * whenever attempts exist — a row that succeeded on its third model is worth the same look.
  */
 
-import { attemptSummary, FAILURE_POLICY, fixForRow } from '../triage/retry.js';
+import { attemptSummary, FAILURE_POLICY, fixForRow } from '../triage/types.js';
 import { CONFIDENCE_THRESHOLD } from '../triage/schema.js';
 import {
   CATEGORIES,
@@ -26,7 +26,7 @@ import {
   type TriageResult,
   type UnreadableReason,
 } from '../triage/types.js';
-import type { QueueRow } from './App.js';
+import type { QueueRow } from './types.js';
 
 const CATEGORY_LABEL = new Map<Category, string>(CATEGORIES.map((c) => [c.id, c.label]));
 const PRIORITY_LABEL = new Map<Priority, string>(PRIORITIES.map((p) => [p.id, p.label]));

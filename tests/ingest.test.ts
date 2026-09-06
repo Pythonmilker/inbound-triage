@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { loadInbound, repairIllegalEscapes, type LoadOutcome } from '../src/ingest/load.js';
-import { contentHash } from '../src/lib/hash.js';
+import { contentHash } from '../src/triage/hash.js';
 import type { InboundMessage } from '../src/triage/types.js';
 
 const INBOUND = fileURLToPath(new URL('../raw/inbound.json', import.meta.url));

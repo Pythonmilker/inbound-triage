@@ -22,8 +22,8 @@
  * re-deriving the taxonomy here would put it in two places and let the two drift.
  */
 
-import { FAILURE_POLICY } from '../triage/retry.js';
-import type { RunNote, RunSummary } from '../triage/run.js';
+import { FAILURE_POLICY } from '../triage/types.js';
+import type { RunNote, RunSummary } from '../runContract.js';
 import type { FailureKind, InboundMessage, TriageResult } from '../triage/types.js';
 
 export const ROUTES = {

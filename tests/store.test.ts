@@ -14,7 +14,7 @@ import { DatabaseSync } from 'node:sqlite';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { contentHash } from '../src/lib/hash.js';
+import { contentHash } from '../src/triage/hash.js';
 import { createSqliteStore } from '../src/store/sqlite.js';
 import type { Store } from '../src/store/types.js';
 import type { Attempt, InboundMessage, TriageResult } from '../src/triage/types.js';

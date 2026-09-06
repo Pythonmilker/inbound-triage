@@ -4,7 +4,7 @@
  * and it is why expansion is not a modal: the queue stays on screen while you read one item of it.
  */
 
-import type { QueueRow } from './App.js';
+import type { QueueRow } from './types.js';
 import { Row } from './Row.js';
 
 /** Passed to the detail row rather than imported by it, so a column added here cannot leave it short. */
