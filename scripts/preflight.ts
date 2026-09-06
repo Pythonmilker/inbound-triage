@@ -2,7 +2,7 @@
  * Runs before `vite` in `pnpm dev`, and is the whole enforcement of two decisions.
  *
  * D-010 — one store, no fallback. The runtime requirement is stated, not cushioned: below Node 22.13.0
- * there is no `node:sqlite`, and the failure that would otherwise reach the operator is a raw
+ * there is no `node:sqlite` (and on 22 it truncates stored strings at a NUL, so the floor is 24), and the failure that would otherwise reach the operator is a raw
  * `ERR_UNKNOWN_BUILTIN_MODULE` from deep inside a module they did not write. Converting that into a
  * sentence naming the version they have and the version the repo pins is the entire job.
  *
@@ -19,7 +19,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-const REQUIRED_NODE: readonly number[] = [22, 13, 0];
+const REQUIRED_NODE: readonly number[] = [24, 0, 0]; // raised from 22.13.0 on 2026-09-05: Node 22 node:sqlite cuts strings at NUL
 
 const KEY = 'OPENROUTER_API_KEY';
 

@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Triages a shared-inbox queue with an LLM: summary, category, priority and next action per message.",
   "engines": {
-    "node": ">=22.13.0"
+    "node": ">=24.0.0"
   },
   "packageManager": "pnpm@11.22.0",
   "scripts": {

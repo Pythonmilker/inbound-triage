@@ -4,7 +4,7 @@ Inbound Triage Assistant is a local single-user tool that reads a shared-inbox q
 a category, a priority and a next action for each message. One LLM call per message, plus a deterministic
 rule layer that runs alongside it and can override the result.
 
-Requires **Node 22.13.0 or newer** (it uses the built-in `node:sqlite`) and pnpm. Developed on Node 24.19.0.
+Requires **Node 24 or newer** and pnpm: it uses the built-in `node:sqlite`, and on Node 22 a stored value is cut at the first NUL character, which one message in the supplied inbox contains (caught by CI on 2026-09-05). Developed on Node 24.19.0.
 It is not deployable, has no auth and is not multi-user.
 
 A three-minute walkthrough of it running, and why it is built this way: https://youtu.be/6F6Z33EAOms
