@@ -432,15 +432,14 @@ against an old Node runtime and rejected: it would carry a second code path that
 would silently remove the scalability property SQLite was chosen for in the first place — robustness in
 appearance, a quiet downgrade in fact. The runtime requirement gets *stated*, not cushioned:
 
-- `engines: { "node": ">=22.13.0" }`
+- `engines: { "node": ">=24.0.0" }` (raised from >=22.13.0 on 2026-09-05 after CI on Node 22 found `node:sqlite` truncating a stored string at the first NUL byte — see commit 21ee13d)
 - a committed `.nvmrc`
-- a preflight in `pnpm dev` that fails with **"needs Node ≥22.13.0, you are on 22.9"** rather than a raw
+- a preflight in `pnpm dev` that fails with **"needs Node >=24.0.0, you are on X"** rather than a raw
   `ERR_UNKNOWN_BUILTIN_MODULE`
 
 Failing fast with a legible message is the correct behaviour here, not an exception to R4 — R4 is about
 surviving bad *data* (a malformed message, an API error), not about papering over a wrong runtime. The
-floor is low enough that every currently-supported Node line already clears it: v18 left support
-2025-04-30 and v20 on 2026-04-30, and `node:sqlite` has been flagless since v22.13.0 in January 2025.
+floor was originally set at the flagless `node:sqlite` version (22.13.0, January 2025) so every currently-supported Node line cleared it; it was raised to 24.0.0 on 2026-09-05 once CI on Node 22 showed `node:sqlite` truncating a stored string at the first NUL byte, which the supplied inbox contains (commit 21ee13d).
 
 ### 4.5 Integrations — the open spaces
 
