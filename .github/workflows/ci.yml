@@ -5,7 +5,8 @@
 # checks: the repo's own executable checks, frozen install. review: Anthropic's claude-code-action runs the
 # code-review plugin on every non-draft pull request and posts one inline comment per finding. It never
 # blocks a merge; branch protection decides that. Auth is CLAUDE_CODE_OAUTH_TOKEN (claude setup-token),
-# which bills to the Max plan and is tied to the account that generated it.
+# which bills to the Max plan and is tied to the account that generated it. Without that secret the
+# review job skips and says so; it never fails a pull request over a missing secret.
 name: ci
 
 on:
@@ -37,8 +38,20 @@ jobs:
       - run: pnpm verify
       - run: npx vite build
 
+  gate:
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.check.outputs.run }}
+    steps:
+      - id: check
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          if [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ]; then echo "run=true" >> "$GITHUB_OUTPUT"; else echo "run=false" >> "$GITHUB_OUTPUT"; echo "CLAUDE_CODE_OAUTH_TOKEN not set; pull-request review skipped"; fi
+
   review:
-    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false
+    needs: gate
+    if: needs.gate.outputs.run == 'true' && github.event_name == 'pull_request' && github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
