@@ -7,7 +7,7 @@
  * without recording the import it hides is not allowed.
  *
  * Taxonomy note: `src/triage/types.ts` and `src/triage/schema.ts` are NOT engine stages. model.c4
- * lines 472-492 model them as the `taxonomy` artifact — shared data rows and the output shape —
+ * lines 472-493 model them as the `taxonomy` artifact — shared data rows and the output shape —
  * so both lanes may depend on them.
  */
 
@@ -61,7 +61,7 @@ module.exports = {
     {
       name: 'engine-prompt-never-reaches-downstream',
       comment:
-        'model.c4:532-534 — prompt is fed by observations and feeds pool; nothing else. It may not ' +
+        'model.c4:532-533 — prompt is fed by observations and feeds pool; nothing else. It may not ' +
         'import the rule floor, the transport, validate, retry, reconcile or the orchestrator.',
       severity: 'error',
       from: { path: '^src/triage/prompt\.ts$' },
@@ -97,7 +97,7 @@ module.exports = {
     {
       name: 'engine-reconcile-is-terminal',
       comment:
-        'model.c4:540-542 — reconcile is the last stage: it takes the model verdict and the ' +
+        'model.c4:537-538 and 541-542 — reconcile is the last stage: it takes the model verdict and the ' +
         'deterministic verdict and writes the row and the notice. It may import no other engine ' +
         'stage and no transport — only the store, the notifier and the taxonomy.',
       severity: 'error',
@@ -142,7 +142,7 @@ module.exports = {
     {
       name: 'engine-transport-never-reaches-back',
       comment:
-        'model.c4:536-537 — the transport is fed by pool and hands its unchecked reply to validate ' +
+        'model.c4:534 and 536 — the transport is fed by pool and hands its unchecked reply to validate ' +
         '(that edge omitted below). As an engine stage it may not import an earlier stage: ' +
         'ingest, observations, rules, prompt — nor retry, reconcile or the orchestrator.',
       severity: 'error',
@@ -155,7 +155,7 @@ module.exports = {
     {
       name: 'transport-never-imports-store-or-server',
       comment:
-        'model.c4:535-537 — the model transport talks to OpenRouter and hands an unchecked reply ' +
+        'model.c4:535-536 — the model transport talks to OpenRouter and hands an unchecked reply ' +
         'to validate. It has no edge to the store, the API surface or the notifier: only ' +
         'reconcile writes a row (model.c4:541-542).',
       severity: 'error',
@@ -165,8 +165,8 @@ module.exports = {
     {
       name: 'store-and-server-never-import-the-ui',
       comment:
-        'model.c4:37-90 vs 93-132 — the browser and the Node process are separate containers, and ' +
-        'every edge between them runs browser -> server (model.c4:473). Nothing in the Node lane ' +
+        'model.c4:37-90 vs 93-456 — the browser and the Node process are separate containers, and ' +
+        'every edge between them runs browser -> server (model.c4:520). Nothing in the Node lane ' +
         'may import a React component.',
       severity: 'error',
       from: { path: '^src/(server/|store/|triage/|llm/|ingest/|integrations/)' },
@@ -175,7 +175,7 @@ module.exports = {
     {
       name: 'lib-is-leaf-only',
       comment:
-        'model.c4:339-352 — the bounded pool is a generic utility (no import outside src/lib); ' +
+        'model.c4:339-351 — the bounded pool is a generic utility (no import outside src/lib); ' +
         'src/lib is a leaf and may depend on nothing but the runtime. src/lib/hash.ts moved to ' +
         "src/triage/hash.ts (model.c4:353-371, the new engine.hash component) because it was " +
         'domain-coupled to InboundMessage by construction; src/lib now holds only pool.ts, which ' +
