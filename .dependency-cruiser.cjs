@@ -9,9 +9,13 @@
  * Taxonomy note: `src/triage/types.ts` and `src/triage/schema.ts` are NOT engine stages. model.c4
  * lines 472-493 model them as the `taxonomy` artifact — shared data rows and the output shape —
  * so both lanes may depend on them.
+ *
+ * Pattern note: every pattern is a `String.raw` template. dependency-cruiser takes a pattern as the source
+ * of a regular expression, and an ordinary quoted string drops the backslash from `\.` before the tool
+ * sees it, leaving a bare `.` that matches any character.
  */
 
-const TAXONOMY = '^src/triage/(types|schema)\.ts$';
+const TAXONOMY = String.raw`^src/triage/(types|schema)\.ts$`;
 
 /** @type {import('dependency-cruiser').IConfiguration} */
 module.exports = {
@@ -23,8 +27,8 @@ module.exports = {
         '"The only place the API key exists". The browser lane may never reach the server module ' +
         'or the preflight that reads the key.',
       severity: 'error',
-      from: { path: '^src/(ui/|main\.tsx$)' },
-      to: { path: '^(src/server/|scripts/preflight\.ts$)' },
+      from: { path: String.raw`^src/(ui/|main\.tsx$)` },
+      to: { path: String.raw`^(src/server/|scripts/preflight\.ts$)` },
     },
     {
       name: 'browser-imports-rows-only',
@@ -37,9 +41,9 @@ module.exports = {
         "src/runContract.ts (model.c4's new runcontract artifact) — the wire shape the server returns, " +
         "decoded by the browser without touching the engine's internals.",
       severity: 'error',
-      from: { path: '^src/(ui/|main\.tsx$)' },
+      from: { path: String.raw`^src/(ui/|main\.tsx$)` },
       to: {
-        path: '^src/(store/|llm/|ingest/|lib/|triage/)',
+        path: String.raw`^src/(store/|llm/|ingest/|lib/|triage/)`,
         pathNot: TAXONOMY,
       },
     },
@@ -55,8 +59,8 @@ module.exports = {
         'downstream import model.c4:530 permits from ingest is observations (passes repaired messages), ' +
         'so observations is exempt as a target here.',
       severity: 'error',
-      from: { path: '^src/ingest/' },
-      to: { path: '^src/triage/', pathNot: [TAXONOMY, '^src/triage/observations'] },
+      from: { path: String.raw`^src/ingest/` },
+      to: { path: String.raw`^src/triage/`, pathNot: [TAXONOMY, String.raw`^src/triage/observations`] },
     },
     {
       name: 'engine-prompt-never-reaches-downstream',
@@ -64,9 +68,9 @@ module.exports = {
         'model.c4:532-533 — prompt is fed by observations and feeds pool; nothing else. It may not ' +
         'import the rule floor, the transport, validate, retry, reconcile or the orchestrator.',
       severity: 'error',
-      from: { path: '^src/triage/prompt\.ts$' },
+      from: { path: String.raw`^src/triage/prompt\.ts$` },
       to: {
-        path: '^src/(triage/(rules|validate|retry|reconcile|run)\.ts|llm/)',
+        path: String.raw`^src/(triage/(rules|validate|retry|reconcile|run)\.ts|llm/)`,
       },
     },
     {
@@ -77,9 +81,9 @@ module.exports = {
         'not import an upstream stage (ingest, observations, rules, prompt, the transport) nor ' +
         'the orchestrator.',
       severity: 'error',
-      from: { path: '^src/triage/validate\.ts$' },
+      from: { path: String.raw`^src/triage/validate\.ts$` },
       to: {
-        path: '^src/(triage/(observations|rules|prompt|run)\.ts|llm/|ingest/)',
+        path: String.raw`^src/(triage/(observations|rules|prompt|run)\.ts|llm/|ingest/)`,
       },
     },
     {
@@ -89,9 +93,9 @@ module.exports = {
         'edge. It may import no other stage: not reconcile, not validate, not an upstream stage, ' +
         'not the orchestrator.',
       severity: 'error',
-      from: { path: '^src/triage/retry\.ts$' },
+      from: { path: String.raw`^src/triage/retry\.ts$` },
       to: {
-        path: '^src/(triage/(observations|rules|prompt|validate|reconcile|run)\.ts|llm/|ingest/)',
+        path: String.raw`^src/(triage/(observations|rules|prompt|validate|reconcile|run)\.ts|llm/|ingest/)`,
       },
     },
     {
@@ -101,9 +105,9 @@ module.exports = {
         'deterministic verdict and writes the row and the notice. It may import no other engine ' +
         'stage and no transport — only the store, the notifier and the taxonomy.',
       severity: 'error',
-      from: { path: '^src/triage/reconcile\.ts$' },
+      from: { path: String.raw`^src/triage/reconcile\.ts$` },
       to: {
-        path: '^src/(triage/(observations|rules|prompt|validate|retry|run)\.ts|llm/|ingest/)',
+        path: String.raw`^src/(triage/(observations|rules|prompt|validate|retry|run)\.ts|llm/|ingest/)`,
       },
     },
     {
@@ -112,8 +116,8 @@ module.exports = {
         'model.c4:527 — the server runs the engine; the engine does not run itself. No stage may ' +
         'import src/triage/run.ts, which would invert the drive direction and close a cycle.',
       severity: 'error',
-      from: { path: '^src/(triage/(observations|rules|prompt|validate|retry|reconcile)\.ts|ingest/|llm/)' },
-      to: { path: '^src/triage/run\.ts$' },
+      from: { path: String.raw`^src/(triage/(observations|rules|prompt|validate|retry|reconcile)\.ts|ingest/|llm/)` },
+      to: { path: String.raw`^src/triage/run\.ts$` },
     },
     {
       name: 'engine-observations-never-reaches-downstream',
@@ -122,9 +126,9 @@ module.exports = {
         'below as legal targets). It may not import reconcile, validate, retry, the transport or ' +
         'the orchestrator.',
       severity: 'error',
-      from: { path: '^src/triage/observations\.ts$' },
+      from: { path: String.raw`^src/triage/observations\.ts$` },
       to: {
-        path: '^src/(triage/(reconcile|validate|retry|run)\.ts|llm/)',
+        path: String.raw`^src/(triage/(reconcile|validate|retry|run)\.ts|llm/)`,
       },
     },
     {
@@ -134,9 +138,9 @@ module.exports = {
         'outgoing edge, so reconcile is omitted below. Rules may not import prompt, the ' +
         'transport, validate, retry or the orchestrator.',
       severity: 'error',
-      from: { path: '^src/triage/rules\.ts$' },
+      from: { path: String.raw`^src/triage/rules\.ts$` },
       to: {
-        path: '^src/(triage/(prompt|validate|retry|run)\.ts|llm/)',
+        path: String.raw`^src/(triage/(prompt|validate|retry|run)\.ts|llm/)`,
       },
     },
     {
@@ -146,9 +150,9 @@ module.exports = {
         '(that edge omitted below). As an engine stage it may not import an earlier stage: ' +
         'ingest, observations, rules, prompt — nor retry, reconcile or the orchestrator.',
       severity: 'error',
-      from: { path: '^src/llm/' },
+      from: { path: String.raw`^src/llm/` },
       to: {
-        path: '^src/(triage/(observations|rules|prompt|retry|reconcile|run)\.ts|ingest/)',
+        path: String.raw`^src/(triage/(observations|rules|prompt|retry|reconcile|run)\.ts|ingest/)`,
         pathNot: TAXONOMY,
       },
     },
@@ -159,8 +163,8 @@ module.exports = {
         'to validate. It has no edge to the store, the API surface or the notifier: only ' +
         'reconcile writes a row (model.c4:541-542).',
       severity: 'error',
-      from: { path: '^src/llm/' },
-      to: { path: '^src/(store/|server/|integrations/)' },
+      from: { path: String.raw`^src/llm/` },
+      to: { path: String.raw`^src/(store/|server/|integrations/)` },
     },
     {
       name: 'store-and-server-never-import-the-ui',
@@ -169,8 +173,8 @@ module.exports = {
         'every edge between them runs browser -> server (model.c4:520). Nothing in the Node lane ' +
         'may import a React component.',
       severity: 'error',
-      from: { path: '^src/(server/|store/|triage/|llm/|ingest/|integrations/)' },
-      to: { path: '^src/(ui/|main\.tsx$)' },
+      from: { path: String.raw`^src/(server/|store/|triage/|llm/|ingest/|integrations/)` },
+      to: { path: String.raw`^src/(ui/|main\.tsx$)` },
     },
     {
       name: 'lib-is-leaf-only',
@@ -181,8 +185,8 @@ module.exports = {
         'domain-coupled to InboundMessage by construction; src/lib now holds only pool.ts, which ' +
         'makes the leaf property actually hold.',
       severity: 'error',
-      from: { path: '^src/lib/' },
-      to: { path: '^src/', pathNot: '^src/lib/' },
+      from: { path: String.raw`^src/lib/` },
+      to: { path: String.raw`^src/`, pathNot: String.raw`^src/lib/` },
     },
     {
       name: 'no-circular',
@@ -204,17 +208,17 @@ module.exports = {
       from: {
         orphan: true,
         pathNot: [
-          '(^|/)\.[^/]+\.(js|cjs|mjs|ts|cts|mts|json)$',
-          '\.d\.ts$',
-          '(^|/)tsconfig\.json$',
-          '(^|/)(babel|webpack|vite)\.config\.(js|cjs|mjs|ts|cts|mts|json)$',
+          String.raw`(^|/)\.[^/]+\.(js|cjs|mjs|ts|cts|mts|json)$`,
+          String.raw`\.d\.ts$`,
+          String.raw`(^|/)tsconfig\.json$`,
+          String.raw`(^|/)(babel|webpack|vite)\.config\.(js|cjs|mjs|ts|cts|mts|json)$`,
         ],
       },
       to: {},
     },
   ],
   options: {
-    doNotFollow: { path: ['node_modules'] },
+    doNotFollow: { path: [String.raw`node_modules`] },
     tsPreCompilationDeps: true,
     tsConfig: { fileName: 'tsconfig.json' },
     enhancedResolveOptions: {
