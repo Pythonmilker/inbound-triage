@@ -12,7 +12,8 @@
  *
  * Pattern note: every pattern is a `String.raw` template. dependency-cruiser takes a pattern as the source
  * of a regular expression, and an ordinary quoted string drops the backslash from `\.` before the tool
- * sees it, leaving a bare `.` that matches any character.
+ * sees it, leaving a bare `.` that matches any character. tests/dependency-rules.test.ts fails on a pattern
+ * that reaches the tool that way, and on a stage rule that leaves open an import the model's arrows forbid.
  */
 
 const TAXONOMY = String.raw`^src/triage/(types|schema)\.ts$`;
