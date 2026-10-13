@@ -51,51 +51,55 @@ module.exports = {
       name: 'engine-stages-flow-one-way',
       comment:
         'model.c4:530-540 — the pipeline runs ingest -> observations -> rules/prompt -> pool -> ' +
-        'llm -> validate -> reconcile. No earlier stage may import a later one: an upstream stage ' +
-        'that reaches downstream turns a pipeline into a cycle. This rule covers the ingest -> ' +
-        'triage hop; the rules below cover every remaining stage as a source, including src/llm. ' +
-        'src/triage/run.ts is the orchestrator, not a stage — model.c4:527 has the server drive ' +
-        'the engine — so it is exempt as a source and forbidden as a target everywhere. The one ' +
-        'downstream import model.c4:530 permits from ingest is observations (passes repaired messages), ' +
-        'so observations is exempt as a target here.',
+        'llm -> validate -> reconcile, with retry beside reconcile. An arrow in the model is data ' +
+        'moving, and no import may run the way the data does: no earlier stage may import a later ' +
+        'one, the stage it feeds included. An import may run against an arrow — src/triage/rules.ts ' +
+        'and prompt.ts import from ./observations.js, the stage that feeds them — and the wiring ' +
+        'belongs to src/triage/run.ts, the orchestrator, which is not a stage: model.c4:527 has the ' +
+        'server drive the engine, so run.ts is exempt as a source and forbidden as a target ' +
+        'everywhere. This rule covers ingest, the first stage, for which every other stage is ' +
+        'later: it may import nothing under src/triage but the taxonomy, nor the transport, nor ' +
+        'the pool. The rules below cover each remaining stage as a source.',
       severity: 'error',
       from: { path: String.raw`^src/ingest/` },
-      to: { path: String.raw`^src/triage/`, pathNot: [TAXONOMY, String.raw`^src/triage/observations`] },
+      to: { path: String.raw`^src/(triage/|llm/|lib/pool\.ts$)`, pathNot: TAXONOMY },
     },
     {
       name: 'engine-prompt-never-reaches-downstream',
       comment:
-        'model.c4:532-533 — prompt is fed by observations and feeds pool; nothing else. It may not ' +
-        'import the rule floor, the transport, validate, retry, reconcile or the orchestrator.',
+        'model.c4:532-533 — prompt is fed by observations and feeds pool. It may not import the ' +
+        'pool it feeds, nor the transport, validate, retry or reconcile after it, nor the rule ' +
+        'floor beside it, nor the orchestrator.',
       severity: 'error',
       from: { path: String.raw`^src/triage/prompt\.ts$` },
       to: {
-        path: String.raw`^src/(triage/(rules|validate|retry|reconcile|run)\.ts|llm/)`,
+        path: String.raw`^src/(triage/(rules|validate|retry|reconcile|run)\.ts|llm/|lib/pool\.ts$)`,
       },
     },
     {
       name: 'engine-validate-never-reaches-back',
       comment:
         'model.c4:537 "validate -> reconcile the model verdict" and model.c4:539 "validate -> ' +
-        'retry" are the ONLY legal edges out of validate, so both are omitted below. Validate may ' +
-        'not import an upstream stage (ingest, observations, rules, prompt, the transport) nor ' +
-        'the orchestrator.',
+        'retry" are where its output goes, so it may import neither. Nor may it reach back: not ' +
+        'an upstream stage (ingest, observations, rules, prompt, the transport) nor the ' +
+        'orchestrator.',
       severity: 'error',
       from: { path: String.raw`^src/triage/validate\.ts$` },
       to: {
-        path: String.raw`^src/(triage/(observations|rules|prompt|run)\.ts|llm/|ingest/)`,
+        path: String.raw`^src/(triage/(observations|rules|prompt|retry|reconcile|run)\.ts|llm/|ingest/)`,
       },
     },
     {
       name: 'engine-retry-never-reaches-back',
       comment:
         'model.c4:540 — "retry -> pool drains when the blocker clears" is retry\'s only outgoing ' +
-        'edge. It may import no other stage: not reconcile, not validate, not an upstream stage, ' +
-        'not the orchestrator.',
+        'edge, and it may not import the pool it points at: what a drain re-runs is handed to it ' +
+        'as an argument. It may import no stage at all: not reconcile, not validate, not an ' +
+        'upstream stage, not the orchestrator.',
       severity: 'error',
       from: { path: String.raw`^src/triage/retry\.ts$` },
       to: {
-        path: String.raw`^src/(triage/(observations|rules|prompt|validate|reconcile|run)\.ts|llm/|ingest/)`,
+        path: String.raw`^src/(triage/(observations|rules|prompt|validate|reconcile|run)\.ts|llm/|ingest/|lib/pool\.ts$)`,
       },
     },
     {
@@ -122,37 +126,39 @@ module.exports = {
     {
       name: 'engine-observations-never-reaches-downstream',
       comment:
-        'model.c4:531-532 — observations feeds rules and prompt and nothing else (both omitted ' +
-        'below as legal targets). It may not import reconcile, validate, retry, the transport or ' +
-        'the orchestrator.',
+        'model.c4:531-532 — observations feeds rules and prompt, and through them every stage ' +
+        'after. It may import none of them: not rules or prompt, not the pool, the transport, ' +
+        'validate, retry or reconcile, and not the orchestrator.',
       severity: 'error',
       from: { path: String.raw`^src/triage/observations\.ts$` },
       to: {
-        path: String.raw`^src/(triage/(reconcile|validate|retry|run)\.ts|llm/)`,
+        path: String.raw`^src/(triage/(rules|prompt|validate|retry|reconcile|run)\.ts|llm/|lib/pool\.ts$)`,
       },
     },
     {
-      name: 'engine-rules-only-reaches-reconcile',
+      name: 'engine-rules-never-reaches-downstream',
       comment:
         'model.c4:538 "rules -> reconcile the deterministic verdict" is the rule floor\'s only ' +
-        'outgoing edge, so reconcile is omitted below. Rules may not import prompt, the ' +
-        'transport, validate, retry or the orchestrator.',
+        'outgoing edge, and it may not import the reconcile step it feeds. Nor may it import the ' +
+        'pool, the transport, validate or retry, which all come after it, nor prompt beside it, ' +
+        'nor the orchestrator.',
       severity: 'error',
       from: { path: String.raw`^src/triage/rules\.ts$` },
       to: {
-        path: String.raw`^src/(triage/(prompt|validate|retry|run)\.ts|llm/)`,
+        path: String.raw`^src/(triage/(prompt|validate|retry|reconcile|run)\.ts|llm/|lib/pool\.ts$)`,
       },
     },
     {
       name: 'engine-transport-never-reaches-back',
       comment:
-        'model.c4:534 and 536 — the transport is fed by pool and hands its unchecked reply to validate ' +
-        '(that edge omitted below). As an engine stage it may not import an earlier stage: ' +
-        'ingest, observations, rules, prompt — nor retry, reconcile or the orchestrator.',
+        'model.c4:534 and 536 — the transport is fed by pool and hands its unchecked reply to ' +
+        'validate, which it may therefore not import. Nor may it import retry or reconcile ' +
+        'further along, an earlier stage (ingest, observations, rules, prompt), or the ' +
+        'orchestrator.',
       severity: 'error',
       from: { path: String.raw`^src/llm/` },
       to: {
-        path: String.raw`^src/(triage/(observations|rules|prompt|retry|reconcile|run)\.ts|ingest/)`,
+        path: String.raw`^src/(triage/(observations|rules|prompt|validate|retry|reconcile|run)\.ts|ingest/)`,
         pathNot: TAXONOMY,
       },
     },
